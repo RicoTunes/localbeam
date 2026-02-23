@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .qr-test { text-align: center; }
+        img { max-width: 100%; height: auto; }
+        @media (max-width: 600px) {
+            .mobile { background: #e0f7fa; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Responsiveness Test</h1>
+    
+    <div class="test">
+        <h2>1. Viewport Test</h2>
+        <p>If this page looks good on mobile, viewport is working.</p>
+        <div class="mobile">Mobile background should be light blue on small screens.</div>
+    </div>
+    
+    <div class="test qr-test">
+        <h2>2. QR Code Test</h2>
+        <p>Testing QR code display:</p>
+        <img src="http://localhost:5000/api/qr_test" alt="QR Code Test" onerror="this.style.display='none'; document.getElementById('qr-error').style.display='block';">
+        <div id="qr-error" style="display:none; color:red;">
+            QR code failed to load. Check server endpoint.
+        </div>
+    </div>
+    
+    <div class="test">
+        <h2>3. Server Info</h2>
+        <div id="server-info">Loading...</div>
+    </div>
+    
+    <script>
+        fetch('http://localhost:5000/api/info')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('server-info').innerHTML = `
+                    <p>IP: ${data.ip}</p>
+                    <p>Port: ${data.port}</p>
+                    <p>URL: ${data.url}</p>
+                    <p>Directory: ${data.directory}</p>
+                `;
+            })
+            .catch(e => {
+                document.getElementById('server-info').innerHTML = 'Error: ' + e;
+            });
+    </script>
+</body>
+</html>

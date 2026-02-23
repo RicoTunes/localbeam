@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Browser - Wireless File Transfer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/browser.css">
+    <link rel="stylesheet" href="/static/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/static/css/poppins.css">
+</head>
+<body>
+
+    <!-- ===== SITE HEADER / NAV ===== -->
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="header-brand">
+                <i class="fas fa-bolt"></i>
+                <span>Wireless Transfer</span>
+            </div>
+            <nav class="header-nav">
+                <a href="/"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="#" onclick="showHelp();return false;"><i class="fas fa-question-circle"></i> Help</a>
+                <a href="#" onclick="showAbout();return false;"><i class="fas fa-info-circle"></i> About</a>
+            </nav>
+            <button class="nav-toggle" onclick="toggleMobileNav()" aria-label="Toggle menu">
+                <i class="fas fa-bars" id="navToggleIcon"></i>
+            </button>
+        </div>
+        <nav class="header-nav-mobile" id="mobileNav">
+            <a href="/"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="#" onclick="showHelp();toggleMobileNav();return false;"><i class="fas fa-question-circle"></i> Help</a>
+            <a href="#" onclick="showAbout();toggleMobileNav();return false;"><i class="fas fa-info-circle"></i> About</a>
+        </nav>
+    </header>
+
+    <main class="site-main">
+    <div class="container">
+        <div class="page-title">
+            <h1><i class="fas fa-folder-open"></i> File Browser</h1>
+            <p class="subtitle">Browse and download files from your laptop</p>
+            <div class="breadcrumb" id="breadcrumb">
+                <a href="#" onclick="goToHome()"><i class="fas fa-home"></i> Home</a>
+                <span id="pathDisplay">Loading...</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div class="card quick-access-card">
+                    <h2><i class="fas fa-bolt"></i> Quick Access</h2>
+                    <div class="quick-access-list" id="quickAccess">
+                        <!-- Quick access folders will be loaded here -->
+                        <div class="loading">Loading quick access folders...</div>
+                    </div>
+                </div>
+
+                <div class="card stats-card">
+                    <h2><i class="fas fa-chart-bar"></i> Current Directory</h2>
+                    <div class="stats">
+                        <div class="stat">
+                            <span class="stat-value" id="dirCount">0</span>
+                            <span class="stat-label">Folders</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="fileCount">0</span>
+                            <span class="stat-label">Files</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="totalSize">0 MB</span>
+                            <span class="stat-label">Total Size</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card actions-card">
+                    <h2><i class="fas fa-cogs"></i> Actions</h2>
+                    <div class="action-buttons">
+                        <button class="btn" onclick="goUp()">
+                            <i class="fas fa-level-up-alt"></i> Go Up
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshBrowser()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-secondary" onclick="goToHomeDir()">
+                            <i class="fas fa-home"></i> Home Directory
+                        </button>
+                        <button class="btn" onclick="searchFiles()">
+                            <i class="fas fa-search"></i> Search Files
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="card browser-card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-file"></i> File Browser</h2>
+                        <div class="search-box">
+                            <input type="text" id="searchInput" placeholder="Search files...">
+                            <button class="btn btn-small" onclick="performSearch()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="file-browser">
+                        <div class="browser-header">
+                            <div class="header-name" onclick="sortBy('name')">
+                                Name <i class="fas fa-sort" id="sortName"></i>
+                            </div>
+                            <div class="header-size" onclick="sortBy('size')">
+                                Size <i class="fas fa-sort" id="sortSize"></i>
+                            </div>
+                            <div class="header-modified" onclick="sortBy('modified')">
+                                Modified <i class="fas fa-sort" id="sortModified"></i>
+                            </div>
+                            <div class="header-actions">
+                                Actions
+                            </div>
+                        </div>
+
+                        <div class="browser-content" id="browserContent">
+                            <!-- Files and folders will be loaded here -->
+                            <div class="loading">Loading files and folders...</div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <div class="pagination">
+                            <button class="btn btn-small" onclick="previousPage()" disabled id="prevBtn">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <span id="pageInfo">Page 1 of 1</span>
+                            <button class="btn btn-small" onclick="nextPage()" disabled id="nextBtn">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card file-info-card">
+                    <h2><i class="fas fa-info-circle"></i> File Information</h2>
+                    <div class="file-info" id="fileInfo">
+                        <p>Select a file to view details</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    </main>
+
+    <!-- ===== SITE FOOTER ===== -->
+    <footer class="site-footer">
+        <div class="footer-inner" style="grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px;">
+            <div class="footer-brand">
+                <div class="footer-logo"><i class="fas fa-bolt"></i> Wireless Transfer</div>
+                <p>Browse and download any file from your laptop directly to your phone over Wi-Fi.</p>
+            </div>
+            <div class="footer-links">
+                <h4><i class="fas fa-link"></i> Navigation</h4>
+                <a href="/"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="#" onclick="showHelp();return false;"><i class="fas fa-question-circle"></i> Help</a>
+                <a href="#" onclick="showAbout();return false;"><i class="fas fa-info-circle"></i> About</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Wireless File Transfer &bull; Secure local Wi-Fi transfer</p>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('helpModal')">&times;</span>
+            <h2><i class="fas fa-question-circle"></i> File Browser Help</h2>
+            <div class="help-content">
+                <h3>How to use the File Browser:</h3>
+                <ol>
+                    <li><strong>Browse Folders:</strong> Click on any folder to navigate into it</li>
+                    <li><strong>Download Files:</strong> Click the download button next to any file</li>
+                    <li><strong>Quick Access:</strong> Use the Quick Access panel for common folders</li>
+                    <li><strong>Search:</strong> Use the search box to find specific files</li>
+                    <li><strong>Navigation:</strong> Use "Go Up" to move to parent directory</li>
+                </ol>
+                
+                <h3>Supported File Types:</h3>
+                <ul>
+                    <li><i class="fas fa-file-pdf"></i> Documents: PDF, DOC, DOCX, TXT</li>
+                    <li><i class="fas fa-file-image"></i> Images: JPG, PNG, GIF, BMP</li>
+                    <li><i class="fas fa-file-video"></i> Videos: MP4, AVI, MOV, MKV</li>
+                    <li><i class="fas fa-file-audio"></i> Audio: MP3, WAV, FLAC, AAC</li>
+                    <li><i class="fas fa-android"></i> APK Files: Android applications</li>
+                    <li><i class="fas fa-file-archive"></i> Archives: ZIP, RAR, 7Z</li>
+                </ul>
+                
+                <div class="tip">
+                    <strong>Tip:</strong> APK files are commonly found in the Downloads folder. 
+                    Use the "Android APKs" quick access to find them quickly.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('aboutModal')">&times;</span>
+            <h2><i class="fas fa-code"></i> About File Browser</h2>
+            <p>This file browser allows you to access any file on your laptop from your phone.</p>
+            <p><strong>Security Features:</strong></p>
+            <ul>
+                <li>Access restricted to your user directory only</li>
+                <li>No system files or other user files accessible</li>
+                <li>Secure path validation to prevent directory traversal</li>
+                <li>File type filtering for safety</li>
+            </ul>
+            <p>Built with Python Flask and modern web technologies.</p>
+        </div>
+    </div>
+
+    <script src="/static/js/browser.js"></script>
+    <script>
+        function toggleMobileNav() {
+            const nav = document.getElementById('mobileNav');
+            const icon = document.getElementById('navToggleIcon');
+            const open = nav.classList.toggle('open');
+            icon.className = open ? 'fas fa-times' : 'fas fa-bars';
+        }
+    </script>
+</body>
+</html>

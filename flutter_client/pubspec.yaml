@@ -1,0 +1,46 @@
+name: wireless_file_transfer
+description: A Flutter app for wireless file transfer between laptop and Android
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  http: ^1.1.0
+  provider: ^6.1.1
+  qr_code_scanner: ^1.0.1
+  permission_handler: ^10.4.4
+  path_provider: ^2.1.0
+  share_plus: ^7.2.1
+  fluttertoast: ^8.2.4
+  file_picker: ^5.3.3
+  dio: ^5.3.3
+  cached_network_image: ^3.3.0
+  connectivity_plus: ^5.0.1
+  url_launcher: ^6.2.1
+  flutter_svg: ^2.0.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+  
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
