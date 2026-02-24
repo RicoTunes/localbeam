@@ -2,7 +2,7 @@ name: Build LocalBeam iOS IPA
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
   workflow_dispatch:           # allows manual trigger from GitHub Actions tab
 
 jobs:
