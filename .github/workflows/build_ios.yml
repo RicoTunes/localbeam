@@ -18,8 +18,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.0'
-          channel: 'stable'
+          channel: 'stable'   # latest stable — ships Dart >=3.8 needed by bonsoir 6
           cache: true
 
       # ── 3. Install dependencies (also generates ios/Podfile on macOS) ───────
