@@ -40,16 +40,25 @@ jobs:
         working-directory: flutter_client/ios
         run: pod install --repo-update
 
-      # ── 6. Build unsigned IPA (sideload-ready for AltStore / Sideloadly) ──
-      - name: Build IPA (no code sign)
+      # ── 6. Build unsigned .app ────────────────────────────────────────────
+      - name: Build iOS (no code sign)
         working-directory: flutter_client
-        run: flutter build ipa --release --no-codesign
+        run: flutter build ios --release --no-codesign
 
-      # ── 7. Upload IPA as downloadable artifact ─────────────────────────────
+      # ── 7. Package .app → .ipa (sideload-ready) ───────────────────────────
+      - name: Package IPA
+        run: |
+          mkdir -p flutter_client/build/ios/ipa/Payload
+          cp -r "flutter_client/build/ios/iphoneos/Runner.app" \
+                "flutter_client/build/ios/ipa/Payload/LocalBeam.app"
+          cd flutter_client/build/ios/ipa
+          zip -r LocalBeam.ipa Payload
+
+      # ── 8. Upload IPA as downloadable artifact ─────────────────────────────
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: LocalBeam-iOS-${{ github.run_number }}
-          path: flutter_client/build/ios/ipa/*.ipa
+          path: flutter_client/build/ios/ipa/LocalBeam.ipa
           retention-days: 30
           if-no-files-found: error
