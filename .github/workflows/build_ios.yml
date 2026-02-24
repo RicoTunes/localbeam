@@ -1,0 +1,56 @@
+name: Build LocalBeam iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:           # allows manual trigger from GitHub Actions tab
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Flutter SDK ─────────────────────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
+          cache: true
+
+      # ── 3. Install dependencies (also generates ios/Podfile on macOS) ───────
+      - name: Flutter pub get
+        working-directory: flutter_client
+        run: flutter pub get
+
+      # ── 4. CocoaPods cache (speeds up subsequent builds a lot) ─────────────
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: flutter_client/ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('flutter_client/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      # ── 5. Install CocoaPods ───────────────────────────────────────────────
+      - name: Pod install
+        working-directory: flutter_client/ios
+        run: pod install --repo-update
+
+      # ── 6. Build unsigned IPA (sideload-ready for AltStore / Sideloadly) ──
+      - name: Build IPA (no code sign)
+        working-directory: flutter_client
+        run: flutter build ipa --release --no-codesign
+
+      # ── 7. Upload IPA as downloadable artifact ─────────────────────────────
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalBeam-iOS-${{ github.run_number }}
+          path: flutter_client/build/ios/ipa/*.ipa
+          retention-days: 30
+          if-no-files-found: error

@@ -1,0 +1,49 @@
+# Codemagic CI/CD configuration for LocalBeam
+# Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
+#
+# Setup steps:
+#   1. Push this repo to GitHub / GitLab / Bitbucket
+#   2. Sign up at https://codemagic.io (free — 500 macOS minutes/month)
+#   3. Add a new application → select your repo → Codemagic auto-detects this file
+#   4. Click "Start build"  →  download the IPA from the Artifacts panel
+
+workflows:
+  localbeam-ios:
+    name: LocalBeam iOS (unsigned)
+    max_build_duration: 60       # minutes
+    instance_type: mac_mini_m2   # free tier eligible
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Set Flutter version
+        script: flutter --version
+
+      - name: Get Flutter packages
+        script: |
+          cd flutter_client
+          flutter pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd flutter_client/ios
+          pod install --repo-update
+
+      - name: Build unsigned IPA
+        script: |
+          cd flutter_client
+          flutter build ipa --release --no-codesign
+
+    artifacts:
+      - flutter_client/build/ios/ipa/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com    # ← change this to your email
+        notify:
+          success: true
+          failure: true

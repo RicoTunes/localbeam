@@ -15,6 +15,7 @@ import threading
 import time
 import json
 import shutil
+import uuid
 from urllib.parse import unquote
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
@@ -28,6 +29,41 @@ import webbrowser
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# ─── Live transfer tracking ──────────────────────────────────────
+_xfer_lock = threading.Lock()
+live_transfers = {}   # id -> {id, name, size, sent, status, client_ip, started}
+
+def _xfer_start(name, size, client_ip):
+    tid = str(uuid.uuid4())[:8]
+    with _xfer_lock:
+        live_transfers[tid] = {
+            'id': tid, 'name': name, 'size': size,
+            'sent': 0, 'status': 'active',
+            'client_ip': client_ip,
+            'started': time.time()
+        }
+    return tid
+
+def _xfer_update(tid, sent):
+    with _xfer_lock:
+        if tid in live_transfers:
+            live_transfers[tid]['sent'] = sent
+
+def _xfer_done(tid):
+    with _xfer_lock:
+        if tid in live_transfers:
+            live_transfers[tid]['status'] = 'done'
+            live_transfers[tid]['sent'] = live_transfers[tid]['size']
+            # Keep last 20 completed transfers; prune older ones
+            done = [(k,v) for k,v in live_transfers.items() if v['status']=='done']
+            done.sort(key=lambda x: x[1]['started'])
+            for k, _ in done[:-20]:
+                del live_transfers[k]
+
+def _xfer_is_paused(tid):
+    with _xfer_lock:
+        return live_transfers.get(tid, {}).get('status') == 'paused'
+
 # ─────────────────────────────────────────────────────────────────
 # FAST FILE SERVER — raw TCP socket HTTP handler
 # Goes straight down to the OS socket layer:
@@ -39,7 +75,7 @@ from watchdog.events import FileSystemEventHandler
 # ─────────────────────────────────────────────────────────────────
 
 class _FastFileHandler(socketserver.StreamRequestHandler):
-    CHUNK = 4 * 1024 * 1024  # 4 MB
+    CHUNK = 8 * 1024 * 1024  # 8 MB read chunks (was 4 MB)
 
     def handle(self):
         try:
@@ -63,6 +99,17 @@ class _FastFileHandler(socketserver.StreamRequestHandler):
             method = parts[0].upper()
             raw_path = unquote(parts[1])
 
+            # Parse query string — ?path= carries the full file path,
+            # which avoids browser URL normalization mangling Windows paths
+            qs_path = None
+            if '?' in raw_path:
+                url_part, qs = raw_path.split('?', 1)
+                raw_path = url_part
+                for param in qs.split('&'):
+                    if param.startswith('path='):
+                        qs_path = unquote(param[5:])
+                        break
+
             req_hdrs = {}
             for line in lines[1:]:
                 if ":" in line:
@@ -84,16 +131,20 @@ class _FastFileHandler(socketserver.StreamRequestHandler):
                 self._err(405, "Method Not Allowed")
                 return
 
-            # Resolve file path (supports relative names and absolute paths)
-            fp = raw_path.lstrip("/")
-            if len(fp) >= 2 and fp[1] == ":":          # Windows absolute path
-                filepath = os.path.normpath(fp)
-            elif os.path.isabs(fp):                     # Unix absolute path
-                filepath = os.path.normpath(fp)
-            else:                                       # relative to shared dir
-                filepath = os.path.normpath(
-                    os.path.join(self.server.shared_dir, fp)
-                )
+            # Resolve file path — prefer ?path= query param (avoids browser
+            # URL normalization stripping Windows drive letters from path segments)
+            if qs_path:
+                filepath = os.path.normpath(qs_path)
+            else:
+                fp = raw_path.lstrip("/")
+                if len(fp) >= 2 and fp[1] == ":":          # Windows absolute path
+                    filepath = os.path.normpath(fp)
+                elif os.path.isabs(fp):                     # Unix absolute path
+                    filepath = os.path.normpath(fp)
+                else:                                       # relative to shared dir
+                    filepath = os.path.normpath(
+                        os.path.join(self.server.shared_dir, fp)
+                    )
 
             # Security: must live under shared_dir OR user home
             shared_norm = os.path.normpath(self.server.shared_dir)
@@ -150,16 +201,24 @@ class _FastFileHandler(socketserver.StreamRequestHandler):
             if method == "HEAD":
                 return
 
+            # Register transfer
+            client_addr = getattr(self.client_address, '__getitem__', lambda i: '?')(0) if self.client_address else '?'
+            tid = _xfer_start(name, file_size, client_addr)
+
             # ── Stream file as fast as the network allows ──
             with open(filepath, "rb") as f:
                 f.seek(byte_start)
                 remaining = length
+                bytes_sent = 0
                 try:
                     # Zero-copy path — kernel copies directly from file to socket
                     out_fd = self.request.fileno()
                     in_fd  = f.fileno()
                     sent   = 0
                     while sent < length:
+                        if _xfer_is_paused(tid):
+                            time.sleep(0.2)
+                            continue
                         n = os.sendfile(
                             out_fd, in_fd,
                             byte_start + sent,
@@ -168,14 +227,22 @@ class _FastFileHandler(socketserver.StreamRequestHandler):
                         if n == 0:
                             break
                         sent += n
+                        _xfer_update(tid, byte_start + sent)
                 except (AttributeError, OSError):
                     # Windows / fallback: large buffered reads
                     while remaining > 0:
+                        if _xfer_is_paused(tid):
+                            time.sleep(0.2)
+                            continue
                         data = f.read(min(self.CHUNK, remaining))
                         if not data:
                             break
                         self.request.sendall(data)
                         remaining -= len(data)
+                        bytes_sent += len(data)
+                        _xfer_update(tid, byte_start + bytes_sent)
+
+            _xfer_done(tid)
 
         except (BrokenPipeError, ConnectionResetError):
             pass
@@ -208,15 +275,34 @@ class FastTransferServer(socketserver.ThreadingTCPServer):
     def server_bind(self):
         # Maximize throughput at the socket level
         self.socket.setsockopt(_socket.SOL_SOCKET,   _socket.SO_REUSEADDR, 1)
-        self.socket.setsockopt(_socket.SOL_SOCKET,   _socket.SO_SNDBUF,    8 * 1024 * 1024)
+        self.socket.setsockopt(_socket.SOL_SOCKET,   _socket.SO_SNDBUF,    16 * 1024 * 1024)  # 16 MB send buf
+        self.socket.setsockopt(_socket.SOL_SOCKET,   _socket.SO_RCVBUF,    4  * 1024 * 1024)  # 4 MB recv buf
         self.socket.setsockopt(_socket.IPPROTO_TCP,  _socket.TCP_NODELAY,  1)
         super().server_bind()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
+@app.after_request
+def no_cache_js(response):
+    """Prevent phones from caching JS/CSS so updates are always picked up."""
+    path = request.path
+    if path.startswith('/static/js/') or path.startswith('/static/css/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+    return response
+
 # Allow large file uploads (up to 500MB for APKs and large files)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+
+@app.after_request
+def no_cache_js(response):
+    """Prevent phones caching JS so fixes deploy instantly."""
+    if request.path.endswith(('.js', '.css')):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 # Global variables
 transfer_queue = []
@@ -376,6 +462,26 @@ def upload_file():
         return jsonify({"success": True, "filename": filename, "size": os.path.getsize(filepath)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dl')
+def download_file_by_query():
+    """Download a file by passing its absolute path as ?path= query param.
+    Using a query param avoids browser URL normalization mangling Windows paths."""
+    filepath = request.args.get('path', '')
+    if not filepath:
+        return jsonify({'error': 'Missing path parameter'}), 400
+    filepath = os.path.normpath(filepath)
+    if not os.path.isfile(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    user_home = str(Path.home())
+    shared_norm = os.path.normpath(shared_directory) if shared_directory else None
+    in_shared = shared_norm and (filepath == shared_norm or filepath.startswith(shared_norm + os.sep))
+    in_home   = filepath.startswith(user_home)
+    if not (in_shared or in_home):
+        return jsonify({'error': 'Access denied'}), 403
+    directory = os.path.dirname(filepath)
+    filename  = os.path.basename(filepath)
+    return send_from_directory(directory, filename, as_attachment=True)
 
 @app.route('/api/download/<path:filename>')
 def download_file(filename):
@@ -661,6 +767,39 @@ def set_directory():
     
     shared_directory = directory
     return jsonify({"success": True, "directory": directory})
+
+# ─── Transfer tracking endpoints ─────────────────────────────────
+@app.route('/api/transfers')
+def get_transfers():
+    """Return all active + recent transfers for the live feed"""
+    with _xfer_lock:
+        transfers = list(live_transfers.values())
+    transfers.sort(key=lambda x: x['started'], reverse=True)
+    return jsonify({'transfers': transfers})
+
+@app.route('/api/transfers/<tid>/pause', methods=['POST'])
+def pause_transfer(tid):
+    with _xfer_lock:
+        if tid in live_transfers and live_transfers[tid]['status'] == 'active':
+            live_transfers[tid]['status'] = 'paused'
+            return jsonify({'success': True})
+    return jsonify({'error': 'not found'}), 404
+
+@app.route('/api/transfers/<tid>/resume', methods=['POST'])
+def resume_transfer(tid):
+    with _xfer_lock:
+        if tid in live_transfers and live_transfers[tid]['status'] == 'paused':
+            live_transfers[tid]['status'] = 'active'
+            return jsonify({'success': True})
+    return jsonify({'error': 'not found'}), 404
+
+@app.route('/api/transfers/<tid>/cancel', methods=['POST'])
+def cancel_transfer(tid):
+    with _xfer_lock:
+        if tid in live_transfers:
+            live_transfers[tid]['status'] = 'done'
+            return jsonify({'success': True})
+    return jsonify({'error': 'not found'}), 404
 
 @app.route('/api/clipboard', methods=['POST'])
 def set_clipboard():

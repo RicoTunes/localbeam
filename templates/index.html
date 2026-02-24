@@ -1,240 +1,234 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wireless File Transfer - Xender-like</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <title>LocalBeam</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=10">
     <link rel="stylesheet" href="/static/css/font-awesome.min.css">
     <link rel="stylesheet" href="/static/css/poppins.css">
 </head>
 <body>
+<div class="app-shell">
 
-    <!-- ===== SITE HEADER / NAV ===== -->
-    <header class="site-header">
-        <div class="header-inner">
-            <div class="header-brand">
-                <i class="fas fa-bolt"></i>
-                <span>Wireless Transfer</span>
-            </div>
-            <nav class="header-nav" id="desktopNav">
-                <a href="#" onclick="showInstructions();return false;"><i class="fas fa-question-circle"></i> How to Use</a>
-                <a href="/browser"><i class="fas fa-folder-open"></i> Browse Files</a>
-                <a href="#" onclick="showAbout();return false;"><i class="fas fa-info-circle"></i> About</a>
-            </nav>
-            <button class="nav-toggle" onclick="toggleMobileNav()" aria-label="Toggle menu">
-                <i class="fas fa-bars" id="navToggleIcon"></i>
-            </button>
+    <!-- Title Bar -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <div class="title-icon"><i class="fas fa-bolt"></i></div>
+            <span class="title-name">LocalBeam</span>
+            <span class="title-ver">v1.0</span>
         </div>
-        <!-- Mobile dropdown nav -->
-        <nav class="header-nav-mobile" id="mobileNav">
-            <a href="#" onclick="showInstructions();toggleMobileNav();return false;"><i class="fas fa-question-circle"></i> How to Use</a>
-            <a href="/browser"><i class="fas fa-folder-open"></i> Browse Files</a>
-            <a href="#" onclick="showAbout();toggleMobileNav();return false;"><i class="fas fa-info-circle"></i> About</a>
+        <div class="title-bar-center">
+            <span class="status-dot"></span>
+            <span class="status-text">Server running on <strong id="serverUrl">{{ server_url }}</strong></span>
+        </div>
+        <div class="title-bar-right">
+            <button class="tb-btn" onclick="copyUrl()" title="Copy URL"><i class="fas fa-copy"></i></button>
+            <div class="win-controls">
+                <span class="wc wc-min"></span>
+                <span class="wc wc-max"></span>
+                <span class="wc wc-close"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div class="app-body">
+
+        <!-- Navigation Rail -->
+        <nav class="nav-rail">
+            <div class="rail-logo"><i class="fas fa-bolt"></i></div>
+            <div class="rail-items">
+                <button class="rail-item active" onclick="switchPage('dashboard',this)">
+                    <i class="fas fa-home"></i><span>Home</span>
+                </button>
+                <button class="rail-item" onclick="switchPage('files',this)">
+                    <i class="fas fa-folder-open"></i><span>Files</span>
+                </button>
+                <button class="rail-item" onclick="switchPage('transfer',this)">
+                    <i class="fas fa-exchange-alt"></i><span>Transfer</span>
+                </button>
+                <button class="rail-item" onclick="switchPage('settings',this)">
+                    <i class="fas fa-cog"></i><span>Settings</span>
+                </button>
+            </div>
+            <div class="rail-footer">
+                <a href="/browser" class="rail-item" title="Phone browser view">
+                    <i class="fas fa-mobile-alt"></i><span>Phone</span>
+                </a>
+            </div>
         </nav>
-    </header>
 
-    <main class="site-main">
-    <div class="container">
-        <div class="page-title">
-            <h1><i class="fas fa-bolt"></i> Wireless File Transfer</h1>
-            <p class="subtitle">Blazing fast file sharing between laptop and Android</p>
-        </div>
+        <!-- Main -->
+        <main class="app-main">
 
-        <div class="main-content">
-            <div class="left-panel">
-                <div class="card connection-card">
-                    <h2><i class="fas fa-wifi"></i> Connection</h2>
-                    <div class="qr-container">
-                        <img id="qrCode" src="{{ qr_code }}" alt="QR Code">
+            <!-- PAGE: Dashboard -->
+            <div class="page active" id="page-dashboard">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Dashboard</h1>
+                        <p class="page-sub">Scan the QR code with the LocalBeam app to pair instantly</p>
                     </div>
-                    <div class="server-info">
-                        <p><i class="fas fa-server"></i> Server URL: <code id="serverUrl">{{ server_url }}</code></p>
-                        <p><i class="fas fa-folder-open"></i> Shared Directory: <span id="sharedDir">Loading...</span></p>
-                        <button class="btn" onclick="copyUrl()">
-                            <i class="fas fa-copy"></i> Copy URL
-                        </button>
-                        <button class="btn btn-secondary" onclick="changeDirectory()">
-                            <i class="fas fa-folder"></i> Change Directory
-                        </button>
+                    <button class="m3-btn" onclick="refreshFiles()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+                <div class="dash-grid">
+                    <div class="m3-card qr-card">
+                        <div class="card-lbl"><i class="fas fa-qrcode"></i> Scan to Connect</div>
+                        <div class="qr-wrap"><img id="qrCode" src="{{ qr_code }}" alt="QR"></div>
+                        <p class="qr-hint">Point phone camera here</p>
+                        <div class="qr-url-row">
+                            <code id="qrUrl">{{ server_url }}</code>
+                            <button class="icon-btn" onclick="copyUrl()"><i class="fas fa-copy"></i></button>
+                        </div>
+                    </div>
+                    <div class="m3-card stats-card">
+                        <div class="card-lbl"><i class="fas fa-chart-bar"></i> Stats</div>
+                        <div class="stat-grid">
+                            <div class="stat-tile">
+                                <span class="stat-val" id="fileCount"></span>
+                                <span class="stat-lbl">Files</span>
+                            </div>
+                            <div class="stat-tile">
+                                <span class="stat-val" id="totalSize"></span>
+                                <span class="stat-lbl">Total size</span>
+                            </div>
+                            <div class="stat-tile">
+                                <span class="stat-val" id="transferCount">0</span>
+                                <span class="stat-lbl">Transfers</span>
+                            </div>
+                        </div>
+                        <div class="info-row"><i class="fas fa-folder"></i><span id="sharedDir">Loading</span></div>
+                        <div class="info-row"><i class="fas fa-server"></i><span>Flask :5001 &nbsp;|&nbsp; FastTCP :5002</span></div>
+                    </div>
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-clock"></i> Recent</div>
+                        <ul class="recent-list" id="recentList">
+                            <li class="skel"></li><li class="skel"></li><li class="skel"></li>
+                        </ul>
+                    </div>
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-lightbulb"></i> How to Connect</div>
+                        <ol class="how-list">
+                            <li><span class="how-num">1</span>Connect phone &amp; PC to the same Wi-Fi</li>
+                            <li><span class="how-num">2</span>Open LocalBeam app &rarr; tap <strong>Scan QR</strong></li>
+                            <li><span class="how-num">3</span>Point camera at the QR code above — paired!</li>
+                        </ol>
                     </div>
                 </div>
+            </div>
 
-                <div class="card stats-card">
-                    <h2><i class="fas fa-chart-line"></i> Statistics</h2>
-                    <div class="stats">
-                        <div class="stat">
-                            <span class="stat-value" id="fileCount">0</span>
-                            <span class="stat-label">Files Available</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-value" id="totalSize">0 MB</span>
-                            <span class="stat-label">Total Size</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-value" id="transferCount">0</span>
-                            <span class="stat-label">Transfers</span>
-                        </div>
+            <!-- PAGE: Files -->
+            <div class="page" id="page-files">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Files</h1>
+                        <p class="page-sub">All files in your shared directory</p>
+                    </div>
+                    <div class="hdr-actions">
+                        <button class="m3-btn secondary" onclick="uploadFile()"><i class="fas fa-upload"></i> Upload</button>
+                        <button class="m3-btn" onclick="refreshFiles()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    </div>
+                </div>
+                <div class="m3-card files-card">
+                    <div class="search-bar">
+                        <i class="fas fa-search si"></i>
+                        <input type="text" id="fileSearch" placeholder="Search files" oninput="filterFiles()">
+                        <span id="searchCount" class="search-count"></span>
+                    </div>
+                    <div class="file-col-hdr">
+                        <span>Name</span><span>Size</span><span>Modified</span><span>Actions</span>
+                    </div>
+                    <div class="file-list" id="fileList">
+                        <div class="file-empty"><i class="fas fa-spinner fa-spin"></i> Loading</div>
                     </div>
                 </div>
             </div>
 
-            <div class="right-panel">
-                <div class="card files-card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-file"></i> Available Files</h2>
-                        <div class="actions">
-                            <button class="btn btn-small" onclick="refreshFiles()">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                            <button class="btn btn-small btn-secondary" onclick="uploadFile()">
-                                <i class="fas fa-upload"></i> Upload
-                            </button>
-                        </div>
-                    </div>
-
-                    <div style="padding: 8px 16px;">
-                        <input type="text" id="fileSearch" placeholder="Search files (e.g. .apk)..."
-                            oninput="filterFiles()"
-                            style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;">
-                    </div>
-                    
-                    <div class="file-list-container">
-                        <table class="file-table">
-                            <thead>
-                                <tr>
-                                    <th><i class="fas fa-file"></i> Name</th>
-                                    <th><i class="fas fa-weight-hanging"></i> Size</th>
-                                    <th><i class="fas fa-calendar"></i> Modified</th>
-                                    <th><i class="fas fa-cogs"></i> Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fileList">
-                                <!-- Files will be loaded here -->
-                                <tr>
-                                    <td colspan="4" class="loading">Loading files...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="card-footer">
-                        <p>Scan QR code with your phone to access these files</p>
-                    </div>
+            <!-- PAGE: Transfer -->
+            <div class="page" id="page-transfer">
+                <div class="page-header">
+                    <h1 class="page-title">Transfer</h1>
+                    <p class="page-sub">Live activity between paired devices</p>
                 </div>
-
-                <div class="card transfer-card">
-                    <h2><i class="fas fa-exchange-alt"></i> Quick Transfer</h2>
-                    <div class="transfer-options">
-                        <div class="transfer-option" onclick="startQuickTransfer('photos')">
-                            <i class="fas fa-images"></i>
-                            <span>Send Photos</span>
+                <div class="transfer-grid">
+                    <!-- Live feed -->
+                    <div class="m3-card" style="grid-column:1/-1">
+                        <div class="card-lbl" style="justify-content:space-between">
+                            <span><i class="fas fa-exchange-alt"></i> Live Transfer Feed</span>
+                            <span id="xferConnBadge"></span>
                         </div>
-                        <div class="transfer-option" onclick="startQuickTransfer('documents')">
-                            <i class="fas fa-file-pdf"></i>
-                            <span>Send Documents</span>
-                        </div>
-                        <div class="transfer-option" onclick="startQuickTransfer('music')">
-                            <i class="fas fa-music"></i>
-                            <span>Send Music</span>
-                        </div>
-                        <div class="transfer-option" onclick="startQuickTransfer('videos')">
-                            <i class="fas fa-video"></i>
-                            <span>Send Videos</span>
+                        <div class="transfer-feed" id="transferFeed">
+                            <div class="xfer-empty"><i class="fas fa-satellite-dish" style="font-size:2rem;display:block;margin-bottom:10px;color:var(--surface2)"></i>Waiting for transfers…<br><small>Download a file from the phone browser to see activity here</small></div>
                         </div>
                     </div>
-                    
-                    <div class="clipboard-section">
-                        <h3><i class="fas fa-clipboard"></i> Clipboard Sharing</h3>
-                        <textarea id="clipboardText" placeholder="Type text here to share with phone..."></textarea>
-                        <button class="btn" onclick="shareClipboard()">
-                            <i class="fas fa-share"></i> Share to Phone
-                        </button>
+                    <!-- Upload from phone -->
+                    <div class="m3-card drop-zone" id="dropZone" onclick="uploadFile()" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragleave="onDragLeave(event)">
+                        <i class="fas fa-cloud-upload-alt drop-icon"></i>
+                        <p class="drop-title">Upload to shared folder</p>
+                        <p class="drop-sub">Drop files or click to select</p>
+                    </div>
+                    <!-- Clipboard -->
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-clipboard"></i> Clipboard Share</div>
+                        <textarea id="clipboardText" class="clip-area" placeholder="Type or paste text to share with your phone" rows="4"></textarea>
+                        <button class="m3-btn" style="margin-top:12px" onclick="shareClipboard()"><i class="fas fa-share"></i> Share to Phone</button>
                     </div>
                 </div>
             </div>
-        </div>
 
+            <!-- PAGE: Settings -->
+            <div class="page" id="page-settings">
+                <div class="page-header">
+                    <h1 class="page-title">Settings</h1>
+                    <p class="page-sub">Server configuration</p>
+                </div>
+                <div class="settings-grid">
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-folder"></i> Shared Directory</div>
+                        <p class="setting-val" id="settingDir">Loading</p>
+                        <button class="m3-btn" style="margin-top:12px" onclick="changeDirectory()"><i class="fas fa-folder-open"></i> Change Directory</button>
+                    </div>
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-network-wired"></i> Network</div>
+                        <div class="info-row"><i class="fas fa-globe"></i><span>IP: <strong id="settingIp"></strong></span></div>
+                        <div class="info-row"><i class="fas fa-plug"></i><span>Flask port: <strong>5001</strong></span></div>
+                        <div class="info-row"><i class="fas fa-bolt"></i><span>Fast TCP port: <strong>5002</strong></span></div>
+                    </div>
+                    <div class="m3-card">
+                        <div class="card-lbl"><i class="fas fa-info-circle"></i> About</div>
+                        <div class="info-row"><i class="fab fa-python"></i><span>Python + Flask server</span></div>
+                        <div class="info-row"><i class="fas fa-mobile-alt"></i><span>Flutter Android client</span></div>
+                        <div class="info-row"><i class="fas fa-wifi"></i><span>LAN only  no internet needed</span></div>
+                        <div class="info-row"><i class="fas fa-tag"></i><span>Version 1.0</span></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
     </div>
-    </main>
+</div>
 
-    <!-- ===== SITE FOOTER ===== -->
-    <footer class="site-footer">
-        <div class="footer-inner">
-            <div class="footer-brand">
-                <div class="footer-logo"><i class="fas fa-bolt"></i> Wireless Transfer</div>
-                <p>Blazing fast file sharing between your laptop and Android over local Wi-Fi. No cables. No cloud.</p>
-                <span class="footer-badge">v1.0</span>
-            </div>
-            <div class="footer-links">
-                <h4><i class="fas fa-link"></i> Quick Links</h4>
-                <a href="#" onclick="showInstructions();return false;"><i class="fas fa-question-circle"></i> How to Use</a>
-                <a href="/browser"><i class="fas fa-folder-open"></i> Browse Files</a>
-                <a href="#" onclick="showAbout();return false;"><i class="fas fa-info-circle"></i> About</a>
-            </div>
-            <div class="footer-tech">
-                <h4><i class="fas fa-layer-group"></i> Built With</h4>
-                <p><i class="fab fa-python"></i> Python &amp; Flask</p>
-                <p><i class="fas fa-wifi"></i> Local Wi-Fi Network</p>
-                <p><i class="fas fa-qrcode"></i> QR Code Connection</p>
-            </div>
-            <div class="footer-tips">
-                <h4><i class="fas fa-lightbulb"></i> Quick Tips</h4>
-                <p><i class="fas fa-check-circle"></i> Same Wi-Fi required</p>
-                <p><i class="fas fa-check-circle"></i> Scan QR with phone</p>
-                <p><i class="fas fa-check-circle"></i> Works on any browser</p>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <p>&copy; 2026 Wireless File Transfer &bull; Like Xender but faster &bull; No installation needed</p>
-        </div>
-    </footer>
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+<!-- Legacy modal stubs so JS won't error -->
+<div id="instructionsModal" class="modal" style="display:none"></div>
+<div id="aboutModal" class="modal" style="display:none"></div>
 
-    <!-- Modals -->
-    <div id="instructionsModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('instructionsModal')">&times;</span>
-            <h2><i class="fas fa-info-circle"></i> How to Use</h2>
-            <ol class="instructions">
-                <li>Make sure your phone and laptop are connected to the same Wi-Fi network</li>
-                <li>Scan the QR code with your phone's camera or any QR scanner app</li>
-                <li>Open the link in your phone's browser</li>
-                <li>Browse and select files to download to your phone</li>
-                <li>Use the upload button to send files from phone to laptop</li>
-                <li>For fastest transfers, keep the app open on both devices</li>
-            </ol>
-            <div class="tip">
-                <strong>Pro Tip:</strong> Use Chrome or Firefox on Android for best performance.
-            </div>
-        </div>
-    </div>
-
-    <div id="aboutModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('aboutModal')">&times;</span>
-            <h2><i class="fas fa-code"></i> About Wireless File Transfer</h2>
-            <p>This app enables blazing fast file transfers between your laptop and Android device without USB cables.</p>
-            <p><strong>Features:</strong></p>
-            <ul>
-                <li>QR code scanning for easy connection</li>
-                <li>Fast file transfers over local Wi-Fi</li>
-                <li>Real-time file browsing</li>
-                <li>Clipboard sharing between devices</li>
-                <li>No installation required on phone</li>
-                <li>Secure local network transfer</li>
-            </ul>
-            <p>Built with Python, Flask, and modern web technologies.</p>
-        </div>
-    </div>
-
-    <script src="/static/js/main.js"></script>
-    <script>
-        function toggleMobileNav() {
-            const nav = document.getElementById('mobileNav');
-            const icon = document.getElementById('navToggleIcon');
-            const open = nav.classList.toggle('open');
-            icon.className = open ? 'fas fa-times' : 'fas fa-bars';
-        }
-    </script>
+<script src="/static/js/main.js?v=10"></script>
+<script>
+function switchPage(id, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.rail-item').forEach(r => r.classList.remove('active'));
+    document.getElementById('page-' + id).classList.add('active');
+    el.classList.add('active');
+}
+function onDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('dropZone').classList.remove('drag-over'); }
+function onDrop(e) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.remove('drag-over');
+    handleFileUpload({ target: { files: e.dataTransfer.files } });
+}
+</script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 // File Browser JavaScript
 let currentPath = '';
+let rootDir = '';           // initial shared directory (back-button boundary)
 let currentFiles = [];
 let currentDirectories = [];
 let currentSort = { field: 'name', ascending: true };
@@ -14,8 +15,9 @@ document.addEventListener('DOMContentLoaded', function() {
             fastBaseUrl = `http://${data.ip}:${data.fast_port}`;
         }
         // Start browser in the shared folder, not the user's home directory
-        loadDirectory(data.directory || '');
-        loadQuickAccess(data.directory || null);
+        rootDir = data.directory || '';
+        loadDirectory(rootDir);
+        loadQuickAccess(rootDir || null);
     }).catch(() => {
         loadDirectory('');
         loadQuickAccess(null);
@@ -76,28 +78,20 @@ async function loadQuickAccess(sharedDir) {
         if (sharedDir) {
             html += `
                 <div class="quick-access-item quick-access-pinned" onclick="loadDirectory('${sharedDir.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')"
-                     title="Jump to shared folder">
+                     title="Shared folder">
                     <i class="fas fa-share-alt"></i>
-                    <div class="item-info">
-                        <div class="item-name">&#128279; Shared Folder</div>
-                        <div class="item-path">${escapeHtml(sharedDir)}</div>
-                    </div>
-                    <div class="item-count" style="background:#7c3aed;color:#fff;border-radius:6px;padding:2px 6px;font-size:0.75rem;">Home</div>
+                    <div class="item-name">Shared</div>
                 </div>
             `;
         }
-        
+
         if (data.special_dirs && data.special_dirs.length > 0) {
             data.special_dirs.forEach(dir => {
                 const icon = getDirIcon(dir.icon);
                 html += `
-                    <div class="quick-access-item" onclick="navigateTo('${encodeURIComponent(dir.path)}')">
+                    <div class="quick-access-item" onclick="navigateTo('${encodeURIComponent(dir.path)}')" title="${escapeHtml(dir.path)}">
                         <i class="fas fa-${icon}"></i>
-                        <div class="item-info">
-                            <div class="item-name">${escapeHtml(dir.name)}</div>
-                            <div class="item-path">${escapeHtml(dir.path)}</div>
-                        </div>
-                        <div class="item-count">${dir.file_count}</div>
+                        <div class="item-name">${escapeHtml(dir.name)}</div>
                     </div>
                 `;
             });
@@ -178,12 +172,13 @@ function displayBrowserContents() {
 function createDirectoryItem(dir) {
     return `
         <div class="browser-item folder" onclick="navigateTo('${encodeURIComponent(dir.path)}')">
-            <div class="item-name">
-                <div class="item-icon"><i class="fas fa-folder"></i></div>
-                <span>${escapeHtml(dir.name)}</span>
+            <div class="item-icon-wrap"><i class="fas fa-folder"></i></div>
+            <div class="item-meta">
+                <div class="name-row">
+                    <span class="item-name-text">${escapeHtml(dir.name)}</span>
+                </div>
+                <div class="item-sub"><span>Folder</span></div>
             </div>
-            <div class="item-size">--</div>
-            <div class="item-modified">--</div>
             <div class="item-actions">
                 <button class="action-icon open" title="Open" onclick="event.stopPropagation(); navigateTo('${encodeURIComponent(dir.path)}')">
                     <i class="fas fa-folder-open"></i>
@@ -198,20 +193,24 @@ function createFileItem(file) {
     const fileClass = getFileClass(file.extension);
     const fileIcon = getFileIcon(file.extension);
     const sizeFormatted = formatFileSize(file.size);
-    const dateFormatted = new Date(file.modified * 1000).toLocaleString();
-    const fileTypeBadge = getFileTypeBadge(file.extension);
-    
+    const dateFormatted = formatDateShort(file.modified);
+    const badge = getFileTypeBadge(file.extension);
+
     return `
         <div class="browser-item file ${fileClass}" onclick="showFileInfo('${encodeURIComponent(file.path)}', '${escapeHtml(file.name)}', ${file.size}, '${file.extension}')">
-            <div class="item-name">
-                <div class="item-icon"><i class="fas fa-${fileIcon}"></i></div>
-                <span>${escapeHtml(file.name)}</span>
-                ${fileTypeBadge}
+            <div class="item-icon-wrap"><i class="fas fa-${fileIcon}"></i></div>
+            <div class="item-meta">
+                <div class="name-row">
+                    <span class="item-name-text">${escapeHtml(file.name)}</span>
+                    ${badge}
+                </div>
+                <div class="item-sub">
+                    <span>${sizeFormatted}</span>
+                    <span>${dateFormatted}</span>
+                </div>
             </div>
-            <div class="item-size">${sizeFormatted}</div>
-            <div class="item-modified">${dateFormatted}</div>
             <div class="item-actions">
-                <button class="action-icon download" title="Download" onclick="event.stopPropagation(); downloadFile('${encodeURIComponent(file.path)}', '${escapeHtml(file.name)}')">
+                <button class="action-icon download" title="Download" onclick="event.stopPropagation(); downloadFile('${encodeURIComponent(file.path)}', '${escapeHtml(file.name)}', ${file.size})">
                     <i class="fas fa-download"></i>
                 </button>
                 <button class="action-icon info" title="Info" onclick="event.stopPropagation(); showFileInfo('${encodeURIComponent(file.path)}', '${escapeHtml(file.name)}', ${file.size}, '${file.extension}')">
@@ -222,6 +221,13 @@ function createFileItem(file) {
     `;
 }
 
+// Short date formatter for item sub-line
+function formatDateShort(timestamp) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp * 1000);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 // Navigate to directory
 function navigateTo(path) {
     currentPage = 1;
@@ -230,10 +236,16 @@ function navigateTo(path) {
 
 // Go up to parent directory
 function goUp() {
-    if (currentPath) {
-        const parentPath = currentPath.split('/').slice(0, -1).join('/') || '';
-        navigateTo(parentPath || '');
+    // Normalize paths for comparison (handle mixed / and \\ separators)
+    const norm = p => p.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!currentPath || norm(currentPath) === norm(rootDir)) {
+        window.location.href = '/';
+        return;
     }
+    const parts = norm(currentPath).split('/');
+    parts.pop();
+    const parent = parts.join('/') || rootDir;
+    navigateTo(parent);
 }
 
 // Go to home directory
@@ -268,6 +280,11 @@ function updateStats(dirCount, fileCount, totalSize) {
     document.getElementById('dirCount').textContent = dirCount;
     document.getElementById('fileCount').textContent = fileCount;
     document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+    const badge = document.getElementById('itemCountBadge');
+    if (badge) {
+        const total = dirCount + fileCount;
+        badge.textContent = total > 0 ? `${total} item${total !== 1 ? 's' : ''}` : '';
+    }
 }
 
 // Calculate total size of files
@@ -288,16 +305,25 @@ function sortBy(field) {
 
 // Update sort icons
 function updateSortIcons() {
-    // Reset all icons
-    document.getElementById('sortName').className = 'fas fa-sort';
-    document.getElementById('sortSize').className = 'fas fa-sort';
-    document.getElementById('sortModified').className = 'fas fa-sort';
-    
+    // Reset all icons and button states
+    ['Name', 'Size', 'Modified'].forEach(f => {
+        const icon = document.getElementById('sort' + f);
+        if (icon) icon.className = 'fas fa-sort';
+    });
+    ['sbName', 'sbSize', 'sbMod'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('active');
+    });
+
     // Set active sort icon
     const activeIcon = document.getElementById(`sort${capitalizeFirst(currentSort.field)}`);
     if (activeIcon) {
         activeIcon.className = currentSort.ascending ? 'fas fa-sort-up' : 'fas fa-sort-down';
     }
+    // Highlight active sort button
+    const btnMap = { name: 'sbName', size: 'sbSize', modified: 'sbMod' };
+    const activeBtn = document.getElementById(btnMap[currentSort.field]);
+    if (activeBtn) activeBtn.classList.add('active');
 }
 
 // Update pagination
@@ -373,58 +399,78 @@ function performSearch() {
 function showFileInfo(filepath, filename, size, extension) {
     const fileInfo = document.getElementById('fileInfo');
     const sizeFormatted = formatFileSize(size);
-    const fileClass = getFileClass(extension);
     const fileIcon = getFileIcon(extension);
-    
+
     fileInfo.innerHTML = `
         <div class="file-details active">
             <div class="file-detail-item">
-                <span class="file-detail-label">Name:</span>
+                <span class="file-detail-label">Name</span>
                 <span class="file-detail-value">${escapeHtml(filename)}</span>
             </div>
             <div class="file-detail-item">
-                <span class="file-detail-label">Type:</span>
-                <span class="file-detail-value">${extension || 'Unknown'} <i class="fas fa-${fileIcon}"></i></span>
+                <span class="file-detail-label">Type</span>
+                <span class="file-detail-value">${extension ? extension.toUpperCase() : 'Unknown'} &nbsp;<i class="fas fa-${fileIcon}"></i></span>
             </div>
             <div class="file-detail-item">
-                <span class="file-detail-label">Size:</span>
+                <span class="file-detail-label">Size</span>
                 <span class="file-detail-value">${sizeFormatted}</span>
             </div>
-            <div class="file-detail-item">
-                <span class="file-detail-label">Path:</span>
-                <span class="file-detail-value">${escapeHtml(filepath)}</span>
-            </div>
-            <div class="action-buttons" style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <button class="btn" onclick="downloadFile('${encodeURIComponent(filepath)}', '${escapeHtml(filename)}')">
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn" style="flex:1;" onclick="downloadFile('${encodeURIComponent(filepath)}', '${escapeHtml(filename)}', ${size})">
                     <i class="fas fa-download"></i> Download
                 </button>
-                <button class="btn btn-secondary" onclick="shareFile('${encodeURIComponent(filepath)}', '${escapeHtml(filename)}')">
+                <button class="btn btn-secondary" style="flex:1;" onclick="shareFile('${encodeURIComponent(filepath)}', '${escapeHtml(filename)}')">
                     <i class="fas fa-share"></i> Share
                 </button>
             </div>
         </div>
     `;
 }
+// ── File Download ─────────────────────────────────────────────────────────
+// Priority:
+//  1. Fast server (port 5002) — raw TCP, no Python GIL, kernel streams
+//     straight to phone disk via window.open (fastest possible)
+//  2. Flask /api/dl — fallback when fast server unavailable
 
-// Download file — uses raw-socket fast server for maximum LAN speed
-function downloadFile(filepath, filename) {
+function downloadFile(filepath, filename, fileSize) {
     let transferCount = parseInt(localStorage.getItem('transferCount') || 0);
     localStorage.setItem('transferCount', transferCount + 1);
 
-    // filepath is already URI-encoded from the onclick — don't encode again
+    const rawPath = decodeURIComponent(filepath);
+
+    // Show animated download overlay
+    _showDlOverlay(filename);
+
     const url = fastBaseUrl
-        ? `${fastBaseUrl}/${filepath}`
-        : `/api/download/${filepath}`;
-    window.open(url, '_blank');
-    showNotification(`Downloading ${filename}...`);
+        ? `${fastBaseUrl}/?path=${encodeURIComponent(rawPath)}`
+        : `/api/dl?path=${encodeURIComponent(rawPath)}`;
+
+    // Small delay so overlay renders before browser opens the download tab
+    setTimeout(() => {
+        window.open(url, '_blank');
+        // Auto-dismiss overlay after 3 s
+        setTimeout(_hideDlOverlay, 3000);
+    }, 120);
 }
 
-// Share file — always uses fast server URL so recipient only needs LAN
+function _showDlOverlay(filename) {
+    const overlay = document.getElementById('dlOverlay');
+    const nameEl  = document.getElementById('dlFilename');
+    if (!overlay) return;
+    if (nameEl) nameEl.textContent = filename;
+    overlay.style.display = 'flex';
+}
+function _hideDlOverlay() {
+    const overlay = document.getElementById('dlOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+// Share file — prefer fast server (port 5002) then fall back to Flask
 function shareFile(filepath, filename) {
-    // filepath is already URI-encoded from the onclick — don't encode again
+    const rawPath = decodeURIComponent(filepath);
     const url = fastBaseUrl
-        ? `${fastBaseUrl}/${filepath}`
-        : `${window.location.origin}/api/download/${filepath}`;
+        ? `${fastBaseUrl}/?path=${encodeURIComponent(rawPath)}`
+        : `${window.location.origin}/api/dl?path=${encodeURIComponent(rawPath)}`;
 
     if (navigator.share) {
         navigator.share({
@@ -465,13 +511,15 @@ function getFileIcon(extension) {
 }
 
 function getFileTypeBadge(extension) {
+    if (!extension) return '';
     const ext = extension.toLowerCase();
-    if (ext === '.apk') return '<span class="file-type-badge badge-apk">APK</span>';
-    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) return '<span class="file-type-badge badge-image">Image</span>';
-    if (['.mp4', '.avi', '.mov', '.mkv', '.wmv'].includes(ext)) return '<span class="file-type-badge badge-video">Video</span>';
-    if (['.mp3', '.wav', '.flac', '.aac', '.ogg'].includes(ext)) return '<span class="file-type-badge badge-audio">Audio</span>';
-    if (['.pdf'].includes(ext)) return '<span class="file-type-badge badge-pdf">PDF</span>';
-    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) return '<span class="file-type-badge badge-archive">Archive</span>';
+    if (ext === '.apk') return '<span class="item-badge badge-apk">APK</span>';
+    if (['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext)) return '<span class="item-badge badge-image">IMG</span>';
+    if (['.mp4','.avi','.mov','.mkv','.wmv'].includes(ext)) return '<span class="item-badge badge-video">VID</span>';
+    if (['.mp3','.wav','.flac','.aac','.ogg'].includes(ext)) return '<span class="item-badge badge-audio">AUD</span>';
+    if (['.pdf'].includes(ext)) return '<span class="item-badge badge-pdf">PDF</span>';
+    if (['.zip','.rar','.7z','.tar','.gz'].includes(ext)) return '<span class="item-badge badge-archive">ZIP</span>';
+    if (['.doc','.docx','.txt','.xls','.xlsx','.ppt','.pptx'].includes(ext)) return '<span class="item-badge badge-document">DOC</span>';
     return '';
 }
 

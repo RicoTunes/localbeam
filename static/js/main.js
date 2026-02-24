@@ -1,449 +1,322 @@
-// Wireless File Transfer - Main JavaScript
+﻿// LocalBeam  Flutter Desktop Web App JS
 let allFilesData = [];
-let fastBaseUrl = null;  // e.g. "http://192.168.1.5:5002" — raw socket fast server
+let fastBaseUrl = null;
+let _xferPollTimer = null;
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the app
+document.addEventListener('DOMContentLoaded', () => {
     loadServerInfo();
     loadFiles();
-    
-    // Set up auto-refresh every 30 seconds
     setInterval(loadFiles, 30000);
-    
-    // Set up event listeners
+    // Start transfer feed polling
+    setInterval(pollTransfers, 2000);
+
+    const cached = localStorage.getItem('clipboardCache');
+    if (cached) document.getElementById('clipboardText').value = cached;
+
     document.getElementById('clipboardText').addEventListener('input', function() {
         localStorage.setItem('clipboardCache', this.value);
     });
-    
-    // Load cached clipboard text
-    const cachedText = localStorage.getItem('clipboardCache');
-    if (cachedText) {
-        document.getElementById('clipboardText').value = cachedText;
-    }
 });
 
-// Load server information
+/*  Server info  */
 async function loadServerInfo() {
     try {
-        const response = await fetch('/api/info');
-        const data = await response.json();
+        const r = await fetch('/api/info');
+        const d = await r.json();
 
-        document.getElementById('sharedDir').textContent = data.directory || 'Not set';
+        const dir = d.directory || 'Not set';
+        const ip  = d.ip || '';
 
-        // Build fast-server base URL for direct LAN downloads (no internet needed)
-        if (data.ip && data.fast_port) {
-            fastBaseUrl = `http://${data.ip}:${data.fast_port}`;
-        } else {
-            fastBaseUrl = null;
-        }
-    } catch (error) {
-        console.error('Failed to load server info:', error);
-        document.getElementById('sharedDir').textContent = 'Error loading';
+        set('sharedDir',  dir);
+        set('settingDir', dir);
+        set('settingIp',  ip);
+
+        if (d.ip && d.fast_port) fastBaseUrl = `http://${d.ip}:${d.fast_port}`;
+
+    } catch(e) {
+        set('sharedDir',  'Error loading');
+        set('settingDir', 'Error loading');
     }
 }
 
-// Load files from server
+/*  File list  */
 async function loadFiles() {
-    const fileList = document.getElementById('fileList');
-    fileList.innerHTML = '<tr><td colspan="4" class="loading">Loading files...</td></tr>';
-    
+    const el = document.getElementById('fileList');
+    el.innerHTML = '<div class="file-empty"><i class="fas fa-spinner fa-spin"></i> Loading</div>';
+
     try {
-        const response = await fetch('/api/files');
-        const data = await response.json();
-        
-        if (data.error) {
-            fileList.innerHTML = `<tr><td colspan="4" class="loading">Error: ${data.error}</td></tr>`;
-            return;
+        const r = await fetch('/api/files');
+        const d = await r.json();
+        if (d.error) { el.innerHTML = `<div class="file-empty">Error: ${d.error}</div>`; return; }
+        if (!d.files || d.files.length === 0) {
+            el.innerHTML = '<div class="file-empty">No files found in shared directory</div>';
+            updateStats(0, 0); return;
         }
-        
-        if (data.files.length === 0) {
-            fileList.innerHTML = '<tr><td colspan="4" class="loading">No files found in shared directory</td></tr>';
-            updateStats(0, 0);
-            return;
-        }
-        
-        allFilesData = data.files;
-        renderFiles(data.files);
-        updateStats(data.files.length, data.files.reduce((s, f) => s + f.size, 0));
-        
-    } catch (error) {
-        console.error('Failed to load files:', error);
-        fileList.innerHTML = '<tr><td colspan="4" class="loading">Failed to load files. Check server connection.</td></tr>';
+        allFilesData = d.files;
+        renderFiles(d.files);
+        updateStats(d.files.length, d.files.reduce((s,f) => s + f.size, 0));
+        renderRecent(d.files.slice(0, 5));
+    } catch(e) {
+        el.innerHTML = '<div class="file-empty">Failed to load files</div>';
     }
 }
 
-// Render a list of file objects into the table
 function renderFiles(files) {
-    const fileList = document.getElementById('fileList');
-    if (files.length === 0) {
-        fileList.innerHTML = '<tr><td colspan="4" class="loading">No matching files found</td></tr>';
-        return;
+    const el = document.getElementById('fileList');
+    if (!files.length) {
+        el.innerHTML = '<div class="file-empty">No matching files found</div>';
+        updateCount(0); return;
     }
-
-    let html = '';
-    files.forEach(file => {
-        const sizeFormatted = formatFileSize(file.size);
-        const dateFormatted = new Date(file.modified * 1000).toLocaleString();
-        html += `
-            <tr>
-                <td>
-                    <i class="fas fa-file${getFileIcon(file.name)}"></i>
-                    ${escapeHtml(file.name)}
-                </td>
-                <td><span class="file-size">${sizeFormatted}</span></td>
-                <td><span class="file-date">${dateFormatted}</span></td>
-                <td>
-                    <div class="file-actions">
-                        <button class="action-btn" title="Download" onclick="downloadFile('${encodeURIComponent(file.name)}')">
-                            <i class="fas fa-download"></i>
-                        </button>
-                        <button class="action-btn" title="Share Link" onclick="shareFileLink('${encodeURIComponent(file.name)}')">
-                            <i class="fas fa-share-alt"></i>
-                        </button>
-                        <button class="action-btn" title="Get Info" onclick="showFileInfo('${encodeURIComponent(file.name)}', ${file.size})">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-    fileList.innerHTML = html;
+    el.innerHTML = files.map(f => {
+        const size = fmtSize(f.size);
+        const date = new Date(f.modified * 1000).toLocaleDateString();
+        const enc  = encodeURIComponent(f.name);
+        return `
+        <div class="file-row">
+            <div class="file-name-cell">
+                <div class="file-icon-bubble ${iconClass(f.name)}">
+                    <i class="${iconFA(f.name)}"></i>
+                </div>
+                <span class="file-name-text" title="${esc(f.name)}">${esc(f.name)}</span>
+            </div>
+            <span class="file-size-cell">${size}</span>
+            <span class="file-date-cell">${date}</span>
+            <div class="file-actions-cell">
+                <button class="act-btn dl" title="Download" onclick="downloadFile('${enc}')">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button class="act-btn" title="Copy link" onclick="shareFileLink('${enc}')">
+                    <i class="fas fa-link"></i>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+    updateCount(files.length);
 }
 
-// Filter displayed files by search input
+function renderRecent(files) {
+    const el = document.getElementById('recentList');
+    if (!el || !files.length) return;
+    el.innerHTML = files.map(f => `
+        <li>
+            <i class="${iconFA(f.name)}"></i>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
+            <span style="color:var(--text-dim);font-size:11px">${fmtSize(f.size)}</span>
+        </li>`).join('');
+}
+
+/*  Filter  */
 function filterFiles() {
-    const query = document.getElementById('fileSearch').value.toLowerCase().trim();
-    if (!query) {
-        renderFiles(allFilesData);
-        updateStats(allFilesData.length, allFilesData.reduce((s, f) => s + f.size, 0));
-        return;
-    }
-    const filtered = allFilesData.filter(f => f.name.toLowerCase().includes(query));
+    const q = document.getElementById('fileSearch').value.toLowerCase().trim();
+    if (!q) { renderFiles(allFilesData); updateStats(allFilesData.length, allFilesData.reduce((s,f)=>s+f.size,0)); return; }
+    const filtered = allFilesData.filter(f => f.name.toLowerCase().includes(q));
     renderFiles(filtered);
-    updateStats(filtered.length, filtered.reduce((s, f) => s + f.size, 0));
+    updateStats(filtered.length, filtered.reduce((s,f)=>s+f.size,0));
 }
 
-// Update statistics display
-function updateStats(fileCount, totalSize) {
-    document.getElementById('fileCount').textContent = fileCount;
-    document.getElementById('totalSize').textContent = formatFileSize(totalSize);
-    
-    // Update transfer count from localStorage
-    const transferCount = localStorage.getItem('transferCount') || 0;
-    document.getElementById('transferCount').textContent = transferCount;
+/*  Stats  */
+function updateStats(count, bytes) {
+    set('fileCount',    count);
+    set('totalSize',    fmtSize(bytes));
+    set('transferCount', localStorage.getItem('transferCount') || 0);
 }
 
-// Format file size
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+function updateCount(n) {
+    const el = document.getElementById('searchCount');
+    if (el) el.textContent = n + ' files';
 }
 
-// Get appropriate file icon
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    
-    if (ext === 'apk') {
-        return '-android';
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
-        return '-image';
-    } else if (['mp4', 'avi', 'mov', 'mkv', 'wmv'].includes(ext)) {
-        return '-video';
-    } else if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(ext)) {
-        return '-audio';
-    } else if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext)) {
-        return '-pdf';
-    } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-        return '-archive';
-    } else {
-        return '';
-    }
-}
-
-// Copy server URL to clipboard
-function copyUrl() {
-    const url = document.getElementById('serverUrl').textContent;
-    
-    navigator.clipboard.writeText(url).then(() => {
-        showNotification('URL copied to clipboard!');
-    }).catch(err => {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = url;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        showNotification('URL copied to clipboard!');
-    });
-}
-
-// Change shared directory
-async function changeDirectory() {
-    // In a real app, this would open a directory picker
-    // For this demo, we'll prompt for a path
-    const path = prompt('Enter the full path to the directory you want to share:');
-    
-    if (!path) return;
-    
-    try {
-        const response = await fetch('/api/set_directory', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ directory: path })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification(`Directory changed to: ${path}`);
-            document.getElementById('sharedDir').textContent = path;
-            loadFiles();
-        } else {
-            showNotification(`Error: ${data.error}`, 'error');
-        }
-    } catch (error) {
-        showNotification('Failed to change directory', 'error');
-    }
-}
-
-// Download a file — goes through raw-socket fast server (LAN only, no internet)
-function downloadFile(filename) {
-    let transferCount = parseInt(localStorage.getItem('transferCount') || 0);
-    localStorage.setItem('transferCount', transferCount + 1);
-    document.getElementById('transferCount').textContent = transferCount + 1;
-
-    // Use fast transfer server if available, otherwise fall back to Flask
-    const url = fastBaseUrl
-        ? `${fastBaseUrl}/${filename}`
-        : `/api/download/${filename}`;
+/*  Actions  */
+function downloadFile(enc) {
+    let tc = parseInt(localStorage.getItem('transferCount') || 0) + 1;
+    localStorage.setItem('transferCount', tc);
+    set('transferCount', tc);
+    const url = fastBaseUrl ? `${fastBaseUrl}/${enc}` : `/api/download/${enc}`;
     window.open(url, '_blank');
-    showNotification(`Downloading ${decodeURIComponent(filename)}...`);
+    showToast(`Downloading ${decodeURIComponent(enc)}`);
 }
 
-// Share file link — always uses fast server URL so recipient only needs LAN
-function shareFileLink(filename) {
-    const url = fastBaseUrl
-        ? `${fastBaseUrl}/${filename}`
-        : `${window.location.origin}/api/download/${filename}`;
+function shareFileLink(enc) {
+    const url = fastBaseUrl ? `${fastBaseUrl}/${enc}` : `${location.origin}/api/download/${enc}`;
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => showToast('Could not copy'));
+}
 
-    if (navigator.share) {
-        navigator.share({
-            title: `Download ${decodeURIComponent(filename)}`,
-            text: 'Download this file from my laptop over Wi-Fi',
-            url: url
+function copyUrl() {
+    const url = document.getElementById('serverUrl').textContent.trim();
+    navigator.clipboard.writeText(url).then(() => showToast('URL copied!')).catch(() => showToast('Copy failed'));
+}
+
+async function changeDirectory() {
+    const path = prompt('Enter the full path to share:');
+    if (!path) return;
+    try {
+        const r = await fetch('/api/set_directory', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({directory: path})
         });
-    } else {
-        navigator.clipboard.writeText(url).then(() => {
-            showNotification('Download link copied to clipboard!');
-        });
-    }
+        const d = await r.json();
+        if (d.success) { showToast('Directory changed'); set('sharedDir', path); set('settingDir', path); loadFiles(); }
+        else showToast('Error: ' + d.error);
+    } catch(e) { showToast('Failed to change directory'); }
 }
 
-// Show file information
-function showFileInfo(filename, size) {
-    alert(`File: ${decodeURIComponent(filename)}\nSize: ${formatFileSize(size)}\n\nRight-click the download button to save with a different name.`);
-}
+function refreshFiles() { showToast('Refreshing'); loadFiles(); }
 
-// Refresh files
-function refreshFiles() {
-    showNotification('Refreshing file list...');
-    loadFiles();
-}
-
-// Upload file from desktop
 function uploadFile() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.onchange = handleFileUpload;
-    input.click();
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.multiple = true;
+    inp.onchange = handleFileUpload; inp.click();
 }
 
-// Handle file upload
 async function handleFileUpload(event) {
     const files = event.target.files;
     if (!files.length) return;
-
-    showNotification(`Uploading ${files.length} file(s)...`, 'info');
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (let i = 0; i < files.length; i++) {
-        const formData = new FormData();
-        formData.append('file', files[i]);
-
+    showToast(`Uploading ${files.length} file(s)`);
+    let ok = 0, fail = 0;
+    for (const file of files) {
+        const fd = new FormData(); fd.append('file', file);
         try {
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                successCount++;
-            } else {
-                errorCount++;
-                console.error(`Upload failed for ${files[i].name}: ${data.error}`);
-            }
-        } catch (error) {
-            errorCount++;
-            console.error(`Upload error for ${files[i].name}:`, error);
-        }
+            const r = await fetch('/api/upload', {method:'POST', body:fd});
+            const d = await r.json();
+            if (d.success) ok++; else fail++;
+        } catch(e) { fail++; }
     }
-
-    if (successCount > 0) {
-        showNotification(`Successfully uploaded ${successCount} file(s)!`);
-        loadFiles();
-    }
-    if (errorCount > 0) {
-        showNotification(`${errorCount} file(s) failed to upload.`, 'error');
-    }
+    if (ok)   { showToast(`Uploaded ${ok} file(s)!`); loadFiles(); }
+    if (fail) showToast(`${fail} upload(s) failed`);
 }
 
-// Start quick transfer
 function startQuickTransfer(type) {
-    const types = {
-        'photos': 'Send photos from your phone to laptop',
-        'documents': 'Send documents from your phone to laptop',
-        'music': 'Send music files from your phone to laptop',
-        'videos': 'Send videos from your phone to laptop'
-    };
-    
-    showNotification(types[type] + ' - Open the server URL on your phone to upload.', 'info');
+    showToast('Open the server URL on your phone  Upload');
 }
 
-// Share clipboard to phone
 async function shareClipboard() {
     const text = document.getElementById('clipboardText').value.trim();
-    
-    if (!text) {
-        showNotification('Please enter some text to share', 'warning');
+    if (!text) { showToast('Enter some text first'); return; }
+    try {
+        const r = await fetch('/api/clipboard', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({text})
+        });
+        const d = await r.json();
+        if (d.success) showToast('Shared to phone!'); else showToast('Error: ' + d.error);
+    } catch(e) { showToast('Failed to share'); }
+}
+
+/*  Compat stubs (modals replaced by toasts)  */
+function showInstructions() { showToast('Same Wi-Fi  Scan QR  Browse & download'); }
+function showAbout()        { showToast('Python + Flask server  Flutter Android client  LAN only'); }
+function closeModal(id)     {}
+
+/*  Toast  */
+let toastTimer;
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Legacy alias
+function showNotification(msg) { showToast(msg); }
+
+/*  Helpers  */
+function set(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function fmtSize(b) {
+    if (!b) return '0 B';
+    const k = 1024, u = ['B','KB','MB','GB','TB'];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    return parseFloat((b / Math.pow(k,i)).toFixed(1)) + ' ' + u[i];
+}
+
+function iconClass(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (ext === 'apk') return 'fi-apk';
+    if (['jpg','jpeg','png','gif','bmp','webp','heic','svg'].includes(ext)) return 'fi-image';
+    if (['mp4','mkv','avi','mov','wmv','flv','webm'].includes(ext)) return 'fi-video';
+    if (['mp3','wav','aac','flac','ogg','m4a'].includes(ext)) return 'fi-audio';
+    if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt'].includes(ext)) return 'fi-doc';
+    if (['zip','rar','7z','tar','gz'].includes(ext)) return 'fi-archive';
+    return 'fi-default';
+}
+
+function iconFA(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (ext === 'apk') return 'fab fa-android';
+    if (['jpg','jpeg','png','gif','bmp','webp','heic','svg'].includes(ext)) return 'fas fa-image';
+    if (['mp4','mkv','avi','mov','wmv','flv','webm'].includes(ext)) return 'fas fa-film';
+    if (['mp3','wav','aac','flac','ogg','m4a'].includes(ext)) return 'fas fa-music';
+    if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt'].includes(ext)) return 'fas fa-file-alt';
+    if (['zip','rar','7z','tar','gz'].includes(ext)) return 'fas fa-file-archive';
+    return 'fas fa-file';
+}
+
+/* ── Transfer Live Feed ─────────────────────────────────────── */
+
+async function pollTransfers() {
+    try {
+        const r = await fetch('/api/transfers');
+        if (!r.ok) return;
+        const d = await r.json();
+        const transfers = d.transfers || [];
+        renderTransferFeed(transfers);
+
+        // Update badge in nav rail
+        const badge = document.getElementById('xferConnBadge');
+        if (badge) {
+            const active = transfers.filter(t => t.status === 'active').length;
+            badge.textContent = active > 0 ? active : '';
+            badge.style.display = active > 0 ? 'flex' : 'none';
+        }
+    } catch (_) { /* server not ready yet */ }
+}
+
+function renderTransferFeed(transfers) {
+    const el = document.getElementById('transferFeed');
+    if (!el) return;
+
+    if (!transfers.length) {
+        el.innerHTML = '<div class="xfer-empty"><i class="fas fa-exchange-alt"></i><span>No active transfers</span></div>';
         return;
     }
-    
-    try {
-        const response = await fetch('/api/clipboard', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ text: text })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification('Text shared to phone clipboard!');
-        } else {
-            showNotification(`Failed to share: ${data.error}`, 'error');
-        }
-    } catch (error) {
-        showNotification('Failed to share clipboard', 'error');
-    }
+
+    el.innerHTML = transfers.map(t => {
+        const pct = t.size > 0 ? Math.min(100, Math.round(t.sent * 100 / t.size)) : 0;
+        const statusLabel = t.status === 'active' ? 'Receiving'
+                          : t.status === 'paused' ? 'Paused'
+                          : 'Done';
+        return `<div class="xfer-row" id="xfer-${t.id}">
+  <div class="xfer-icon"><i class="${iconFA(t.name)}"></i></div>
+  <div class="xfer-info">
+    <div class="xfer-name" title="${esc(t.name)}">${esc(t.name)}</div>
+    <div class="xfer-prog-wrap"><div class="xfer-prog-bar" style="width:${pct}%"></div></div>
+    <div class="xfer-meta">
+      <span>${pct}%</span>
+      <span>${fmtSize(t.sent)} / ${fmtSize(t.size)}</span>
+      <span>${esc(t.client_ip)}</span>
+    </div>
+  </div>
+  <div class="xfer-actions">
+    ${t.status === 'active'  ? `<button class="act-btn" onclick="pauseTransfer('${t.id}')" title="Pause"><i class="fas fa-pause"></i></button>` : ''}
+    ${t.status === 'paused'  ? `<button class="act-btn" onclick="resumeTransfer('${t.id}')" title="Resume"><i class="fas fa-play"></i></button>` : ''}
+    <button class="act-btn danger" onclick="cancelTransfer('${t.id}')" title="Cancel"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="xfer-status-dot ${t.status}" title="${statusLabel}"></div>
+</div>`;
+    }).join('');
 }
 
-// Show instructions modal
-function showInstructions() {
-    document.getElementById('instructionsModal').style.display = 'flex';
+async function pauseTransfer(tid) {
+    await fetch(`/api/transfers/${tid}/pause`, { method: 'POST' });
+    pollTransfers();
 }
-
-// Show about modal
-function showAbout() {
-    document.getElementById('aboutModal').style.display = 'flex';
+async function resumeTransfer(tid) {
+    await fetch(`/api/transfers/${tid}/resume`, { method: 'POST' });
+    pollTransfers();
 }
-
-// Close modal
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
+async function cancelTransfer(tid) {
+    await fetch(`/api/transfers/${tid}/cancel`, { method: 'POST' });
+    pollTransfers();
 }
-
-// Show notification
-function showNotification(message, type = 'success') {
-    // Remove existing notification
-    const existing = document.querySelector('.notification');
-    if (existing) existing.remove();
-    
-    // Create notification
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <span>${message}</span>
-        <button onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
-    // Add styles
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'error' ? '#f8d7da' : type === 'warning' ? '#fff3cd' : '#d1ecf1'};
-        color: ${type === 'error' ? '#721c24' : type === 'warning' ? '#856404' : '#0c5460'};
-        padding: 15px 20px;
-        border-radius: 8px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-width: 300px;
-        max-width: 400px;
-        animation: slideIn 0.3s ease;
-    `;
-    
-    // Add button styles
-    notification.querySelector('button').style.cssText = `
-        background: none;
-        border: none;
-        font-size: 20px;
-        cursor: pointer;
-        margin-left: 15px;
-        color: inherit;
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 5000);
-    
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
-// Utility: Escape HTML
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Close modals when clicking outside
-window.onclick = function(event) {
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-};

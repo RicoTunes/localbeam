@@ -1,65 +1,76 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wireless_file_transfer/screens/home_screen.dart';
-import 'package:wireless_file_transfer/services/api_service.dart';
-import 'package:wireless_file_transfer/services/transfer_service.dart';
+import 'services/api_service.dart';
+import 'services/peer_service.dart';
+import 'screens/connect_screen.dart';
+import 'screens/main_shell.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialise PeerService (loads stored device name)
+  final peerService = PeerService();
+  await peerService.init();
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => peerService),
+      ],
+      child: const WirelessTransferApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class WirelessTransferApp extends StatelessWidget {
+  const WirelessTransferApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ApiService()),
-        ChangeNotifierProvider(create: (_) => TransferService()),
-      ],
-      child: MaterialApp(
-        title: 'Wireless File Transfer',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          fontFamily: 'Poppins',
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.light,
-          ),
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            titleTextStyle: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Poppins',
-            ),
-          ),
-        ),
-        darkTheme: ThemeData(
-          primarySwatch: Colors.blue,
-          fontFamily: 'Poppins',
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
-          ),
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            titleTextStyle: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Poppins',
-            ),
-          ),
-        ),
-        themeMode: ThemeMode.system,
-        debugShowCheckedModeBanner: false,
-        home: const HomeScreen(),
+    return MaterialApp(
+      title: 'Wireless Transfer',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      home: Consumer<ApiService>(
+        builder: (context, api, _) =>
+            api.isConnected ? const MainShell() : const ConnectScreen(),
       ),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF667EEA),
+        brightness: brightness,
+      ),
+      scaffoldBackgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor:
+            isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        foregroundColor:
+            isDark ? Colors.white : const Color(0xFF1E293B),
+        titleTextStyle: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : const Color(0xFF1E293B),
+        ),
+      ),
+      fontFamily: 'Poppins',
     );
   }
 }
