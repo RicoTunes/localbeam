@@ -10,18 +10,7 @@ let fastBaseUrl = null;  // raw-socket fast transfer server base URL
 
 document.addEventListener('DOMContentLoaded', function() {
     // Fetch server info: fast transfer port + shared directory to start in
-    fetch('/api/info').then(r => r.json()).then(data => {
-        if (data.ip && data.fast_port) {
-            fastBaseUrl = `http://${data.ip}:${data.fast_port}`;
-        }
-        // Start browser in the shared folder, not the user's home directory
-        rootDir = data.directory || '';
-        loadDirectory(rootDir);
-        loadQuickAccess(rootDir || null);
-    }).catch(() => {
-        loadDirectory('');
-        loadQuickAccess(null);
-    });
+    fetchServerInfo(true);
     
     // Set up event listeners
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
@@ -31,13 +20,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Fetch server info (shared directory, fast port, etc.)
+// Returns true if the shared directory changed on the server
+async function fetchServerInfo(navigateToRoot) {
+    try {
+        const r = await fetch('/api/info?_t=' + Date.now());
+        const data = await r.json();
+        if (data.ip && data.fast_port) {
+            fastBaseUrl = `http://${data.ip}:${data.fast_port}`;
+        }
+        const newRoot = data.directory || '';
+        const rootChanged = rootDir !== '' && rootDir !== newRoot;
+        rootDir = newRoot;
+        if (navigateToRoot || rootChanged) {
+            loadDirectory(rootDir);
+            loadQuickAccess(rootDir || null);
+        }
+        return rootChanged;
+    } catch(e) {
+        if (navigateToRoot) {
+            loadDirectory('');
+            loadQuickAccess(null);
+        }
+        return false;
+    }
+}
+
 // Load directory contents
 async function loadDirectory(path) {
     const browserContent = document.getElementById('browserContent');
     browserContent.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading files...</div>';
     
     try {
-        const url = path ? `/api/browse?path=${encodeURIComponent(path)}` : '/api/browse';
+        const cacheBust = '_t=' + Date.now();
+        const url = path
+            ? `/api/browse?path=${encodeURIComponent(path)}&${cacheBust}`
+            : `/api/browse?${cacheBust}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -70,7 +88,7 @@ async function loadQuickAccess(sharedDir) {
     const quickAccess = document.getElementById('quickAccess');
     
     try {
-        const response = await fetch('/api/special_dirs');
+        const response = await fetch('/api/special_dirs?_t=' + Date.now());
         const data = await response.json();
         
         // Prepend a pinned "Shared Folder" shortcut at the top
@@ -195,10 +213,29 @@ function createFileItem(file) {
     const sizeFormatted = formatFileSize(file.size);
     const dateFormatted = formatDateShort(file.modified);
     const badge = getFileTypeBadge(file.extension);
+    const ext = file.extension.toLowerCase();
+    const isImage = ['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext);
+    const isVideo = ['.mp4','.avi','.mov','.mkv','.wmv'].includes(ext);
+    const isAudio = ['.mp3','.wav','.flac','.aac','.ogg'].includes(ext);
+    const isPreviewable = isImage || isVideo || isAudio;
+
+    const clickAction = isPreviewable
+        ? `openPreview('${encodeURIComponent(file.path)}','${escapeHtml(file.name)}','${ext}')`
+        : `showFileInfo('${encodeURIComponent(file.path)}','${escapeHtml(file.name)}',${file.size},'${file.extension}')`;
+
+    let iconHtml;
+    if (isImage) {
+        const previewUrl = `/api/preview?path=${encodeURIComponent(file.path)}`;
+        iconHtml = `<div class="item-icon-wrap thumb-wrap"><img class="item-thumb" src="${previewUrl}" loading="lazy" onerror="this.parentElement.classList.remove('thumb-wrap');this.nextElementSibling.style.display='';this.remove()"><i class="fas fa-${fileIcon}" style="display:none"></i></div>`;
+    } else if (isVideo || isAudio) {
+        iconHtml = `<div class="item-icon-wrap"><i class="fas fa-${fileIcon}"></i><span class="play-badge"><i class="fas fa-play"></i></span></div>`;
+    } else {
+        iconHtml = `<div class="item-icon-wrap"><i class="fas fa-${fileIcon}"></i></div>`;
+    }
 
     return `
-        <div class="browser-item file ${fileClass}" onclick="showFileInfo('${encodeURIComponent(file.path)}', '${escapeHtml(file.name)}', ${file.size}, '${file.extension}')">
-            <div class="item-icon-wrap"><i class="fas fa-${fileIcon}"></i></div>
+        <div class="browser-item file ${fileClass}" onclick="${clickAction}">
+            ${iconHtml}
             <div class="item-meta">
                 <div class="name-row">
                     <span class="item-name-text">${escapeHtml(file.name)}</span>
@@ -219,6 +256,39 @@ function createFileItem(file) {
             </div>
         </div>
     `;
+}
+
+// ── File preview modal ──────────────────────────────────────────
+function openPreview(filepath, filename, ext) {
+    const rawPath = decodeURIComponent(filepath);
+    const url = `/api/preview?path=${encodeURIComponent(rawPath)}`;
+    const modal = document.getElementById('previewModal');
+    const body = document.getElementById('previewBody');
+    const title = document.getElementById('previewTitle');
+    const footer = document.getElementById('previewFooter');
+    title.textContent = filename;
+
+    if (['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext)) {
+        body.innerHTML = `<img src="${url}" class="preview-img" alt="${escapeHtml(filename)}">`;
+    } else if (['.mp4','.avi','.mov','.mkv','.wmv'].includes(ext)) {
+        body.innerHTML = `<video src="${url}" class="preview-video" controls autoplay playsinline></video>`;
+    } else if (['.mp3','.wav','.flac','.aac','.ogg'].includes(ext)) {
+        body.innerHTML = `<div class="preview-audio-wrap"><i class="fas fa-music preview-audio-icon"></i><audio src="${url}" class="preview-audio" controls autoplay></audio></div>`;
+    }
+
+    footer.innerHTML = `<button class="btn preview-dl-btn" onclick="downloadFile('${filepath}','${escapeHtml(filename)}',0)"><i class="fas fa-download"></i> Download</button>`;
+    modal.style.display = 'flex';
+}
+
+function closePreview() {
+    const modal = document.getElementById('previewModal');
+    const body = document.getElementById('previewBody');
+    const vid = body.querySelector('video');
+    const aud = body.querySelector('audio');
+    if (vid) vid.pause();
+    if (aud) aud.pause();
+    body.innerHTML = '';
+    modal.style.display = 'none';
 }
 
 // Short date formatter for item sub-line
@@ -258,9 +328,15 @@ function goToHome() {
     window.location.href = '/';
 }
 
-// Refresh browser
+// Refresh browser — also re-fetch server info to pick up directory changes
 function refreshBrowser() {
-    loadDirectory(currentPath);
+    fetchServerInfo(false).then(rootChanged => {
+        // Only reload current path if the root didn't change
+        // (if root changed, fetchServerInfo already navigated to the new root)
+        if (!rootChanged) {
+            loadDirectory(currentPath);
+        }
+    });
 }
 
 // Update breadcrumb
@@ -641,3 +717,477 @@ window.onclick = function(event) {
         }
     });
 };
+
+// ══════════════════════════════════════════════════════════════════
+//  PHONE-TO-PHONE  SHARING
+// ══════════════════════════════════════════════════════════════════
+
+let _p2pDeviceId = localStorage.getItem('p2p_device_id') || '';
+let _p2pName = localStorage.getItem('p2p_device_name') || '';
+let _p2pPollTimer = null;
+let _p2pLastFileCount = 0;
+let _p2pSelectMode = false;
+let _p2pSelected = new Set();
+let _p2pExpiryWarned = new Set();  // file IDs already warned about
+
+// ── Auto-open Share tab if URL has ?tab=share ───────────────────
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'share') {
+        // Defer until DOM is ready
+        const _tryOpen = () => {
+            const btn = document.querySelector('.btm-tab:nth-child(2)');
+            if (btn) switchView('share', btn);
+            else setTimeout(_tryOpen, 100);
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _tryOpen);
+        else _tryOpen();
+    }
+})();
+
+// ── View switching ──────────────────────────────────────────────
+function switchView(view, btn) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.btm-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    const title = document.getElementById('viewTitle');
+    const pathEl = document.getElementById('pathDisplay');
+    const upBtn = document.getElementById('btnGoUp');
+
+    if (view === 'share') {
+        title.textContent = 'Share';
+        pathEl.textContent = 'Phone-to-Phone';
+        upBtn.style.visibility = 'hidden';
+        p2pInit();
+    } else {
+        title.textContent = 'Files';
+        pathEl.textContent = currentPath || 'Loading';
+        upBtn.style.visibility = '';
+    }
+}
+
+// ── P2P Init ────────────────────────────────────────────────────
+async function p2pInit() {
+    if (!_p2pDeviceId) {
+        await p2pRegister(_p2pName);
+    } else {
+        await p2pRegister(_p2pName);
+    }
+    p2pStartPolling();
+    _loadP2PQR();
+    _renderHistory();
+}
+
+async function p2pRegister(name) {
+    try {
+        const body = { device_id: _p2pDeviceId || undefined, name: name || undefined };
+        const r = await fetch('/api/p2p/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        _p2pDeviceId = d.device_id;
+        _p2pName = d.name;
+        localStorage.setItem('p2p_device_id', _p2pDeviceId);
+        localStorage.setItem('p2p_device_name', _p2pName);
+        document.getElementById('p2pMyName').textContent = _p2pName;
+        document.getElementById('p2pMyId').textContent = 'ID: ' + _p2pDeviceId;
+    } catch (e) {
+        console.error('P2P register error:', e);
+    }
+}
+
+function p2pStartPolling() {
+    if (_p2pPollTimer) return;
+    _p2pPoll();
+    _p2pPollTimer = setInterval(_p2pPoll, 3000);
+}
+
+async function _p2pPoll() {
+    // Heartbeat
+    try {
+        fetch('/api/p2p/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_id: _p2pDeviceId, name: _p2pName })
+        });
+    } catch (_) {}
+
+    // Load devices
+    try {
+        const r = await fetch('/api/p2p/devices?_t=' + Date.now());
+        const d = await r.json();
+        _renderDevices(d.devices || []);
+    } catch (_) {}
+
+    // Load shared files
+    try {
+        const r = await fetch('/api/p2p/files?_t=' + Date.now());
+        const d = await r.json();
+        _renderP2PFiles(d.files || []);
+        _checkExpiryWarnings(d.files || []);
+        // Update badge
+        const count = (d.files || []).length;
+        const badge = document.getElementById('p2pBadge');
+        if (count > 0 && count !== _p2pLastFileCount) {
+            badge.textContent = count;
+            badge.style.display = '';
+        }
+        if (count === 0) badge.style.display = 'none';
+        _p2pLastFileCount = count;
+    } catch (_) {}
+}
+
+// ── Render devices ──────────────────────────────────────────────
+function _renderDevices(devices) {
+    const el = document.getElementById('p2pDeviceList');
+    const countEl = document.getElementById('p2pDeviceCount');
+    const others = devices.filter(d => d.id !== _p2pDeviceId);
+    countEl.textContent = others.length;
+
+    if (others.length === 0) {
+        el.innerHTML = '<div class="p2p-empty"><i class="fas fa-search"></i> No other devices connected</div>';
+        return;
+    }
+    el.innerHTML = others.map(d => {
+        const icon = d.user_agent.includes('iPhone') ? 'fa-apple-alt' :
+                     d.user_agent.includes('Android') ? 'fa-android' : 'fa-mobile-alt';
+        const ago = Math.round((Date.now()/1000 - d.last_seen));
+        const status = ago < 10 ? 'Online' : `${ago}s ago`;
+        return `
+            <div class="p2p-device-row">
+                <div class="p2p-device-icon"><i class="fas ${icon}"></i></div>
+                <div class="p2p-device-info">
+                    <span class="p2p-device-name">${escapeHtml(d.name)}</span>
+                    <span class="p2p-device-status">${status}</span>
+                </div>
+                <div class="p2p-device-dot ${ago < 10 ? 'online' : ''}"></div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ── Render shared files (with thumbnails, expiry, multi-select) ─
+function _renderP2PFiles(files) {
+    const el = document.getElementById('p2pFileList');
+    const countEl = document.getElementById('p2pFileCount');
+    countEl.textContent = files.length;
+
+    if (files.length === 0) {
+        el.innerHTML = '<div class="p2p-empty"><i class="fas fa-inbox"></i> No files shared yet</div>';
+        return;
+    }
+    el.innerHTML = files.map(f => {
+        const size = formatFileSize(f.size);
+        const isMine = f.sender_id === _p2pDeviceId;
+        const sender = isMine ? 'You' : escapeHtml(f.sender_name);
+        const ext = '.' + (f.name.split('.').pop() || '').toLowerCase();
+        const icon = getFileIcon(ext);
+        const ago = _timeAgo(f.ts);
+        const isImage = ['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext);
+        const isMedia = isImage || ['.mp4','.avi','.mov','.mkv','.wmv','.mp3','.wav','.flac','.aac','.ogg'].includes(ext);
+        const expiryMin = Math.max(0, Math.ceil((f.expires_in || 0) / 60));
+        const expiryClass = expiryMin <= 10 ? 'expiry-warn' : expiryMin <= 30 ? 'expiry-mid' : '';
+        const checked = _p2pSelected.has(f.id) ? 'checked' : '';
+
+        let iconHtml;
+        if (isImage) {
+            iconHtml = `<div class="p2p-file-icon thumb-wrap"><img class="p2p-thumb" src="/api/p2p/preview/${f.id}" loading="lazy" onerror="this.parentElement.classList.remove('thumb-wrap');this.nextElementSibling.style.display='';this.remove()"><i class="fas fa-${icon}" style="display:none"></i></div>`;
+        } else {
+            iconHtml = `<div class="p2p-file-icon"><i class="fas fa-${icon}"></i></div>`;
+        }
+
+        return `
+            <div class="p2p-file-row ${_p2pSelectMode ? 'selectable' : ''}" ${isMedia && !_p2pSelectMode ? `onclick="openP2PPreview('${f.id}','${escapeHtml(f.name)}','${ext}')"` : ''}>
+                ${_p2pSelectMode ? `<label class="p2p-check"><input type="checkbox" ${checked} onchange="p2pToggleFile('${f.id}')"><span class="p2p-checkmark"></span></label>` : ''}
+                ${iconHtml}
+                <div class="p2p-file-info">
+                    <span class="p2p-file-name">${escapeHtml(f.name)}</span>
+                    <span class="p2p-file-sub">${size} · from ${sender} · ${ago}</span>
+                    <span class="p2p-file-expiry ${expiryClass}"><i class="fas fa-clock"></i> ${expiryMin}m left</span>
+                </div>
+                <div class="p2p-file-actions">
+                    <button class="p2p-dl-btn" onclick="event.stopPropagation();p2pDownload('${f.id}','${escapeHtml(f.name)}',${f.size})" title="Download">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    ${isMine ? `<button class="p2p-del-btn" onclick="event.stopPropagation();p2pDelete('${f.id}')" title="Remove">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ── P2P file preview ────────────────────────────────────────────
+function openP2PPreview(fileId, filename, ext) {
+    const url = `/api/p2p/preview/${fileId}`;
+    const modal = document.getElementById('previewModal');
+    const body = document.getElementById('previewBody');
+    const title = document.getElementById('previewTitle');
+    const footer = document.getElementById('previewFooter');
+    title.textContent = filename;
+
+    if (['.jpg','.jpeg','.png','.gif','.bmp','.webp'].includes(ext)) {
+        body.innerHTML = `<img src="${url}" class="preview-img" alt="${escapeHtml(filename)}">`;
+    } else if (['.mp4','.avi','.mov','.mkv','.wmv'].includes(ext)) {
+        body.innerHTML = `<video src="${url}" class="preview-video" controls autoplay playsinline></video>`;
+    } else if (['.mp3','.wav','.flac','.aac','.ogg'].includes(ext)) {
+        body.innerHTML = `<div class="preview-audio-wrap"><i class="fas fa-music preview-audio-icon"></i><audio src="${url}" class="preview-audio" controls autoplay></audio></div>`;
+    }
+
+    footer.innerHTML = `<button class="btn preview-dl-btn" onclick="p2pDownload('${fileId}','${escapeHtml(filename)}',0)"><i class="fas fa-download"></i> Download</button>`;
+    modal.style.display = 'flex';
+}
+
+// ── Auto-cleanup expiry warnings ────────────────────────────────
+function _checkExpiryWarnings(files) {
+    files.forEach(f => {
+        const min = Math.ceil((f.expires_in || 0) / 60);
+        if (min <= 10 && min > 0 && !_p2pExpiryWarned.has(f.id)) {
+            _p2pExpiryWarned.add(f.id);
+            showNotification(`"${f.name}" expires in ${min} min — download now!`, 'warning');
+        }
+    });
+}
+
+function _timeAgo(ts) {
+    const s = Math.round(Date.now()/1000 - ts);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.round(s/60) + 'm ago';
+    return Math.round(s/3600) + 'h ago';
+}
+
+// ── Multi-select & batch download ───────────────────────────────
+function p2pToggleSelect() {
+    _p2pSelectMode = !_p2pSelectMode;
+    _p2pSelected.clear();
+    const bar = document.getElementById('p2pSelectBar');
+    bar.style.display = _p2pSelectMode ? 'flex' : 'none';
+    document.getElementById('p2pSelCount').textContent = '0';
+    _p2pPoll(); // re-render
+}
+
+function p2pToggleFile(fileId) {
+    if (_p2pSelected.has(fileId)) _p2pSelected.delete(fileId);
+    else _p2pSelected.add(fileId);
+    document.getElementById('p2pSelCount').textContent = _p2pSelected.size;
+}
+
+async function p2pBatchDownload() {
+    const ids = Array.from(_p2pSelected);
+    for (const fid of ids) {
+        // Find filename from the rendered list
+        const row = document.querySelector(`[onclick*="${fid}"]`);
+        const nameEl = row ? row.querySelector('.p2p-file-name') : null;
+        const fname = nameEl ? nameEl.textContent : 'file';
+        await p2pDownload(fid, fname, 0);
+    }
+    _p2pSelectMode = false;
+    _p2pSelected.clear();
+    document.getElementById('p2pSelectBar').style.display = 'none';
+    _p2pPoll();
+}
+
+// ── QR Code for Share tab ───────────────────────────────────────
+let _qrLoaded = false;
+async function _loadP2PQR() {
+    if (_qrLoaded) return;
+    try {
+        const r = await fetch('/api/p2p/qr?_t=' + Date.now());
+        const d = await r.json();
+        const el = document.getElementById('p2pQRImg');
+        if (el) { el.src = d.qr; el.style.display = ''; }
+        const urlEl = document.getElementById('p2pQRUrl');
+        if (urlEl) urlEl.textContent = d.url;
+        _qrLoaded = true;
+    } catch (_) {}
+}
+
+function toggleQR() {
+    const card = document.getElementById('p2pQRCard');
+    const icon = document.getElementById('qrToggleIcon');
+    card.classList.toggle('collapsed');
+    icon.className = card.classList.contains('collapsed') ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+}
+
+// ── Rename device ───────────────────────────────────────────────
+function p2pRename() {
+    const name = prompt('Enter your device name:', _p2pName);
+    if (name && name.trim()) {
+        _p2pName = name.trim();
+        localStorage.setItem('p2p_device_name', _p2pName);
+        p2pRegister(_p2pName);
+    }
+}
+
+// ── Send files ──────────────────────────────────────────────────
+function p2pSelectFiles() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.multiple = true;
+    inp.onchange = (e) => p2pUploadFiles(e.target.files);
+    inp.click();
+}
+
+async function p2pUploadFiles(files) {
+    if (!files || !files.length) return;
+    const progWrap = document.getElementById('p2pUploadProgress');
+    const progName = document.getElementById('p2pUploadName');
+    const progFill = document.getElementById('p2pUploadFill');
+    const progSub  = document.getElementById('p2pUploadSub');
+    progWrap.style.display = '';
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        progName.textContent = `Sending ${file.name} (${i+1}/${files.length})`;
+        progFill.style.width = '0%';
+        progSub.textContent = formatFileSize(file.size);
+
+        try {
+            await _p2pUploadOne(file, (pct) => {
+                progFill.style.width = pct + '%';
+                progSub.textContent = `${pct}% · ${formatFileSize(file.size)}`;
+            });
+            // Record in history
+            _addHistory({ name: file.name, size: file.size, type: 'sent' });
+        } catch (e) {
+            showNotification('Failed to send ' + file.name, 'error');
+        }
+    }
+    progName.textContent = 'All files sent!';
+    progFill.style.width = '100%';
+    progSub.textContent = '';
+    setTimeout(() => { progWrap.style.display = 'none'; }, 2000);
+    _p2pPoll();
+    _renderHistory();
+}
+
+function _p2pUploadOne(file, onProgress) {
+    return new Promise((resolve, reject) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('device_id', _p2pDeviceId);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/p2p/send');
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                onProgress(Math.round(e.loaded / e.total * 100));
+            }
+        };
+        xhr.onload = () => {
+            if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
+            else reject(new Error(xhr.statusText));
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(fd);
+    });
+}
+
+// ── Download shared file (with real progress) ───────────────────
+function p2pDownload(fileId, filename, fileSize) {
+    closePreview(); // close preview modal if open
+    const progWrap = document.getElementById('p2pDlProgress');
+    const progName = document.getElementById('p2pDlName');
+    const progFill = document.getElementById('p2pDlFill');
+    const progSub  = document.getElementById('p2pDlSub');
+
+    progWrap.style.display = '';
+    progName.textContent = `Downloading ${filename}`;
+    progFill.style.width = '0%';
+    progSub.textContent = 'Starting…';
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', `/api/p2p/download/${fileId}`);
+    xhr.responseType = 'blob';
+
+    xhr.onprogress = (e) => {
+        if (e.lengthComputable) {
+            const pct = Math.round(e.loaded / e.total * 100);
+            progFill.style.width = pct + '%';
+            progSub.textContent = `${pct}% · ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`;
+        }
+    };
+
+    xhr.onload = () => {
+        if (xhr.status === 200) {
+            // Trigger browser file save
+            const url = URL.createObjectURL(xhr.response);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+            progName.textContent = 'Download complete!';
+            progFill.style.width = '100%';
+            progSub.textContent = formatFileSize(xhr.response.size);
+            setTimeout(() => { progWrap.style.display = 'none'; }, 2500);
+
+            // Record in history
+            _addHistory({ name: filename, size: xhr.response.size || fileSize, type: 'received' });
+            _renderHistory();
+        } else {
+            showNotification('Download failed', 'error');
+            progWrap.style.display = 'none';
+        }
+    };
+
+    xhr.onerror = () => {
+        showNotification('Download failed — network error', 'error');
+        progWrap.style.display = 'none';
+    };
+
+    xhr.send();
+}
+
+// ── Delete shared file ──────────────────────────────────────────
+async function p2pDelete(fileId) {
+    try {
+        await fetch(`/api/p2p/delete/${fileId}`, { method: 'POST' });
+        _p2pPoll();
+    } catch (_) {}
+}
+
+// ── Transfer History (localStorage) ─────────────────────────────
+function _addHistory(entry) {
+    let history = JSON.parse(localStorage.getItem('p2p_history') || '[]');
+    history.unshift({ ...entry, time: Date.now() });
+    if (history.length > 50) history = history.slice(0, 50);
+    localStorage.setItem('p2p_history', JSON.stringify(history));
+}
+
+function _renderHistory() {
+    const el = document.getElementById('p2pHistory');
+    if (!el) return;
+    const history = JSON.parse(localStorage.getItem('p2p_history') || '[]');
+    if (history.length === 0) {
+        el.innerHTML = '<div class="p2p-empty"><i class="fas fa-history"></i> No transfer history</div>';
+        return;
+    }
+    el.innerHTML = history.slice(0, 20).map(h => {
+        const icon = h.type === 'sent' ? 'fa-arrow-up' : 'fa-arrow-down';
+        const color = h.type === 'sent' ? '#667EEA' : '#4ADE80';
+        const ago = _timeAgo(h.time / 1000);
+        return `
+            <div class="p2p-history-row">
+                <div class="p2p-history-icon" style="color:${color}"><i class="fas ${icon}"></i></div>
+                <div class="p2p-file-info">
+                    <span class="p2p-file-name">${escapeHtml(h.name)}</span>
+                    <span class="p2p-file-sub">${formatFileSize(h.size)} · ${h.type} · ${ago}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function p2pClearHistory() {
+    localStorage.removeItem('p2p_history');
+    _renderHistory();
+}

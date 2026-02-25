@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'browser_screen.dart';
 import 'nearby_screen.dart';
 import 'settings_screen.dart';
+import 'share_screen.dart';
 import 'transfers_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -16,6 +17,7 @@ class _MainShellState extends State<MainShell> {
 
   static const _pages = [
     BrowserScreen(),
+    ShareScreen(),
     NearbyScreen(),
     TransfersScreen(),
     SettingsScreen(),
@@ -37,6 +39,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.folder_outlined),
             selectedIcon: Icon(Icons.folder, color: Color(0xFF667EEA)),
             label: 'Files',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.share_outlined),
+            selectedIcon: Icon(Icons.share, color: Color(0xFF667EEA)),
+            label: 'Share',
           ),
           NavigationDestination(
             icon: Icon(Icons.devices_other_outlined),

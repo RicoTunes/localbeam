@@ -39,6 +39,25 @@ class _BrowserScreenState extends State<BrowserScreen> {
     await _browse(startDir);
   }
 
+  /// Re-fetch server info; if the shared directory changed, navigate there.
+  /// Otherwise just reload the current directory listing.
+  Future<void> _refreshAndDetectChange() async {
+    final api = context.read<ApiService>();
+    final oldDir = api.info?.directory ?? '';
+    await api.checkConnection();
+    if (!mounted) return;
+    final newDir = api.info?.directory ?? '';
+    if (newDir.isNotEmpty && newDir != oldDir) {
+      // Shared directory changed on the server — navigate to the new root
+      _history.clear();
+      _searchCtrl.clear();
+      _query = '';
+      await _browse(newDir);
+    } else {
+      await _browse(_currentPath);
+    }
+  }
+
   Future<void> _browse(String path) async {
     setState(() {
       _loading = true;
@@ -118,7 +137,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               api: api,
               canGoBack: _history.isNotEmpty,
               onBack: _goBack,
-              onRefresh: () => _browse(_currentPath),
+              onRefresh: _refreshAndDetectChange,
               isDark: isDark,
             ),
             // ── Breadcrumb ───────────────────────────────────

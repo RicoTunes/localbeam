@@ -64,6 +64,35 @@ def _xfer_is_paused(tid):
     with _xfer_lock:
         return live_transfers.get(tid, {}).get('status') == 'paused'
 
+# ─── Phone-to-Phone shared space ─────────────────────────────────
+import tempfile as _tempfile
+
+_p2p_lock = threading.Lock()
+_p2p_devices = {}     # device_id -> {id, name, ip, user_agent, last_seen}
+_p2p_files   = {}     # file_id  -> {id, name, size, sender_id, sender_name, ts, path}
+_p2p_dir     = os.path.join(_tempfile.gettempdir(), 'localbeam_p2p')
+os.makedirs(_p2p_dir, exist_ok=True)
+
+def _p2p_prune_devices():
+    """Remove devices not seen in 60 seconds"""
+    now = time.time()
+    with _p2p_lock:
+        dead = [k for k, v in _p2p_devices.items() if now - v['last_seen'] > 60]
+        for k in dead:
+            del _p2p_devices[k]
+
+def _p2p_prune_files():
+    """Remove shared files older than 1 hour"""
+    now = time.time()
+    with _p2p_lock:
+        old = [k for k, v in _p2p_files.items() if now - v['ts'] > 3600]
+        for k in old:
+            fpath = _p2p_files[k].get('path', '')
+            if os.path.exists(fpath):
+                try: os.remove(fpath)
+                except: pass
+            del _p2p_files[k]
+
 # ─────────────────────────────────────────────────────────────────
 # FAST FILE SERVER — raw TCP socket HTTP handler
 # Goes straight down to the OS socket layer:
@@ -283,22 +312,14 @@ class FastTransferServer(socketserver.ThreadingTCPServer):
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-@app.after_request
-def no_cache_js(response):
-    """Prevent phones from caching JS/CSS so updates are always picked up."""
-    path = request.path
-    if path.startswith('/static/js/') or path.startswith('/static/css/'):
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        response.headers['Pragma'] = 'no-cache'
-    return response
-
 # Allow large file uploads (up to 500MB for APKs and large files)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
 @app.after_request
-def no_cache_js(response):
-    """Prevent phones caching JS so fixes deploy instantly."""
-    if request.path.endswith(('.js', '.css')):
+def no_cache_api(response):
+    """Prevent phones caching JS/CSS and API responses so updates are always picked up."""
+    p = request.path
+    if p.endswith(('.js', '.css')) or p.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -815,6 +836,152 @@ def set_clipboard():
 
     threading.Thread(target=_copy, daemon=True).start()
     return jsonify({"success": True})
+
+# ─── Phone-to-Phone transfer endpoints ──────────────────────────────
+
+@app.route('/api/p2p/register', methods=['POST'])
+def p2p_register():
+    """Register or heartbeat a device. Returns its device_id."""
+    _p2p_prune_devices()
+    data = request.json or {}
+    device_id = data.get('device_id') or str(uuid.uuid4())[:8]
+    name = data.get('name', '').strip()
+    if not name:
+        # Derive a name from user-agent
+        ua = request.headers.get('User-Agent', '')
+        if 'iPhone' in ua:
+            name = 'iPhone'
+        elif 'Android' in ua:
+            name = 'Android'
+        else:
+            name = 'Phone'
+    with _p2p_lock:
+        _p2p_devices[device_id] = {
+            'id': device_id,
+            'name': name,
+            'ip': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', ''),
+            'last_seen': time.time()
+        }
+    return jsonify({'device_id': device_id, 'name': name})
+
+@app.route('/api/p2p/devices')
+def p2p_devices():
+    """List all currently connected devices."""
+    _p2p_prune_devices()
+    with _p2p_lock:
+        devs = list(_p2p_devices.values())
+    return jsonify({'devices': devs})
+
+@app.route('/api/p2p/send', methods=['POST'])
+def p2p_send():
+    """Upload a file to the shared space for other devices to download."""
+    _p2p_prune_files()
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file'}), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({'error': 'No filename'}), 400
+
+    sender_id = request.form.get('device_id', 'unknown')
+    with _p2p_lock:
+        sender_name = _p2p_devices.get(sender_id, {}).get('name', 'Unknown')
+
+    file_id = str(uuid.uuid4())[:8]
+    safe_name = os.path.basename(f.filename)
+    dest = os.path.join(_p2p_dir, f"{file_id}_{safe_name}")
+    chunk_size = 1 * 1024 * 1024
+    with open(dest, 'wb') as out:
+        shutil.copyfileobj(f.stream, out, length=chunk_size)
+
+    fsize = os.path.getsize(dest)
+    with _p2p_lock:
+        _p2p_files[file_id] = {
+            'id': file_id,
+            'name': safe_name,
+            'size': fsize,
+            'sender_id': sender_id,
+            'sender_name': sender_name,
+            'ts': time.time(),
+            'path': dest
+        }
+    return jsonify({'success': True, 'file_id': file_id, 'name': safe_name, 'size': fsize})
+
+@app.route('/api/p2p/files')
+def p2p_files():
+    """List all files in the shared drop zone."""
+    _p2p_prune_files()
+    now = time.time()
+    with _p2p_lock:
+        files = list(_p2p_files.values())
+    # Don't expose filesystem path to clients; add expiry info
+    safe = [{k: v for k, v in f.items() if k != 'path'} for f in files]
+    for f in safe:
+        f['expires_in'] = max(0, int(3600 - (now - f['ts'])))
+    safe.sort(key=lambda x: x['ts'], reverse=True)
+    return jsonify({'files': safe})
+
+@app.route('/api/p2p/download/<file_id>')
+def p2p_download(file_id):
+    """Download a file from the shared space."""
+    with _p2p_lock:
+        entry = _p2p_files.get(file_id)
+        if entry:
+            entry['downloads'] = entry.get('downloads', 0) + 1
+    if not entry or not os.path.exists(entry['path']):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(entry['path'], as_attachment=True, download_name=entry['name'])
+
+@app.route('/api/p2p/delete/<file_id>', methods=['POST'])
+def p2p_delete(file_id):
+    """Remove a file from the shared space."""
+    with _p2p_lock:
+        entry = _p2p_files.pop(file_id, None)
+    if entry and os.path.exists(entry['path']):
+        try: os.remove(entry['path'])
+        except: pass
+    return jsonify({'success': True})
+
+@app.route('/api/p2p/qr')
+def p2p_qr():
+    """Generate QR code pointing to the browser Share tab for easy pairing."""
+    ip = server_ip or get_local_ip()
+    url = f"http://{ip}:{server_port}/browser?tab=share"
+    q = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L,
+                       box_size=8, border=3)
+    q.add_data(url)
+    q.make(fit=True)
+    img = q.make_image(fill_color="black", back_color="white")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    qr_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return jsonify({'qr': qr_b64, 'url': url})
+
+@app.route('/api/preview')
+def preview_file():
+    """Serve a file inline for preview (images, audio, video) — no attachment header."""
+    filepath = request.args.get('path', '')
+    if not filepath:
+        return jsonify({'error': 'Missing path'}), 400
+    filepath = os.path.normpath(filepath)
+    if not os.path.isfile(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    user_home = str(Path.home())
+    shared_norm = os.path.normpath(shared_directory) if shared_directory else None
+    in_shared = shared_norm and (filepath == shared_norm or filepath.startswith(shared_norm + os.sep))
+    in_home = filepath.startswith(user_home)
+    if not (in_shared or in_home):
+        return jsonify({'error': 'Access denied'}), 403
+    return send_file(filepath, as_attachment=False)
+
+@app.route('/api/p2p/preview/<file_id>')
+def p2p_preview(file_id):
+    """Serve a P2P shared file inline for preview."""
+    with _p2p_lock:
+        entry = _p2p_files.get(file_id)
+    if not entry or not os.path.exists(entry['path']):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(entry['path'], as_attachment=False)
 
 def open_firewall_ports(port, fast_port):
     """Open firewall ports so phones on the same Wi-Fi can connect.

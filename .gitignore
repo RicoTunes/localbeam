@@ -29,3 +29,15 @@ Thumbs.db
 
 # Editor
 .vscode/settings.json
+
+# Flutter build outputs
+flutter_client/build/
+flutter_client/android/local.properties
+flutter_client/android/app/debug/
+flutter_client/android/app/profile/
+flutter_client/android/app/release/
+
+# APK/IPA artifacts
+*.apk
+*.ipa
+*.aab

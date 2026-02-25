@@ -11,7 +11,7 @@
     <title>Files · Wireless Transfer</title>
     <link rel="stylesheet" href="/static/css/font-awesome.min.css">
     <link rel="stylesheet" href="/static/css/poppins.css">
-    <link rel="stylesheet" href="/static/css/browser.css?v=9">
+    <link rel="stylesheet" href="/static/css/browser.css?v=11">
 </head>
 <body>
 
@@ -19,55 +19,181 @@
 
     <!-- App bar -->
     <header class="app-bar">
-        <button class="ab-btn" onclick="goUp()" title="Go up">
+        <button class="ab-btn" onclick="goUp()" title="Go up" id="btnGoUp">
             <i class="fas fa-arrow-left"></i>
         </button>
         <div class="ab-center">
-            <span class="ab-title">Files</span>
+            <span class="ab-title" id="viewTitle">Files</span>
             <span class="ab-path" id="pathDisplay">Loading</span>
         </div>
-        <button class="ab-btn" onclick="refreshBrowser()" title="Refresh">
+        <button class="ab-btn" onclick="refreshBrowser()" title="Refresh" id="btnRefresh">
             <i class="fas fa-rotate-right"></i>
         </button>
     </header>
 
-    <!-- Search bar -->
-    <div class="search-wrap">
-        <i class="fas fa-search search-icon"></i>
-        <input id="searchInput" type="search" placeholder="Search files and folders"
-               oninput="performSearch()" autocomplete="off" autocorrect="off" spellcheck="false">
+    <!-- ============  VIEW: FILES  ============ -->
+    <div class="view active" id="view-files">
+
+        <!-- Search bar -->
+        <div class="search-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input id="searchInput" type="search" placeholder="Search files and folders"
+                   oninput="performSearch()" autocomplete="off" autocorrect="off" spellcheck="false">
+        </div>
+
+        <!-- Sort strip -->
+        <div class="sort-strip">
+            <button class="ss-btn active" id="sbName" onclick="sortBy('name')">
+                Name <i class="fas fa-sort" id="sortName"></i>
+            </button>
+            <button class="ss-btn" id="sbSize" onclick="sortBy('size')">
+                Size <i class="fas fa-sort" id="sortSize"></i>
+            </button>
+            <button class="ss-btn" id="sbMod" onclick="sortBy('modified')">
+                Date <i class="fas fa-sort" id="sortModified"></i>
+            </button>
+            <span class="ss-count" id="itemCountBadge"></span>
+        </div>
+
+        <!-- File list -->
+        <div class="file-list" id="browserContent">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading</p>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <nav class="pag-bar" id="pagBar">
+            <button class="pg-btn" onclick="previousPage()" disabled id="prevBtn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span id="pageInfo">1 of 1</span>
+            <button class="pg-btn" onclick="nextPage()" disabled id="nextBtn">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </nav>
     </div>
 
-    <!-- Sort strip -->
-    <div class="sort-strip">
-        <button class="ss-btn active" id="sbName" onclick="sortBy('name')">
-            Name <i class="fas fa-sort" id="sortName"></i>
-        </button>
-        <button class="ss-btn" id="sbSize" onclick="sortBy('size')">
-            Size <i class="fas fa-sort" id="sortSize"></i>
-        </button>
-        <button class="ss-btn" id="sbMod" onclick="sortBy('modified')">
-            Date <i class="fas fa-sort" id="sortModified"></i>
-        </button>
-        <span class="ss-count" id="itemCountBadge"></span>
-    </div>
+    <!-- ============  VIEW: SHARE (phone-to-phone)  ============ -->
+    <div class="view" id="view-share">
 
-    <!-- File list -->
-    <div class="file-list" id="browserContent">
-        <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Loading</p>
+        <!-- Device info -->
+        <div class="p2p-section">
+            <div class="p2p-me-card">
+                <div class="p2p-me-icon"><i class="fas fa-mobile-alt"></i></div>
+                <div class="p2p-me-info">
+                    <span class="p2p-me-name" id="p2pMyName">My Device</span>
+                    <span class="p2p-me-sub" id="p2pMyId">Connecting…</span>
+                </div>
+                <button class="p2p-rename-btn" onclick="p2pRename()" title="Rename">
+                    <i class="fas fa-pen"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- QR Code for pairing -->
+        <div class="p2p-section">
+            <div class="p2p-qr-card" id="p2pQRCard">
+                <div class="p2p-qr-header">
+                    <i class="fas fa-qrcode"></i> Scan to Join
+                </div>
+                <img class="p2p-qr-img" id="p2pQRImg" alt="QR Code" src="">
+                <div class="p2p-qr-url" id="p2pQRUrl"></div>
+                <button class="p2p-qr-toggle" onclick="toggleQR()">
+                    <i class="fas fa-chevron-up" id="qrToggleIcon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Connected devices -->
+        <div class="p2p-section">
+            <div class="p2p-section-hdr">
+                <i class="fas fa-wifi"></i> Connected Devices
+                <span class="p2p-device-count" id="p2pDeviceCount">0</span>
+            </div>
+            <div class="p2p-device-list" id="p2pDeviceList">
+                <div class="p2p-empty"><i class="fas fa-search"></i> Looking for devices…</div>
+            </div>
+        </div>
+
+        <!-- Upload button -->
+        <div class="p2p-section">
+            <button class="p2p-send-btn" onclick="p2pSelectFiles()">
+                <i class="fas fa-paper-plane"></i> Send Files
+            </button>
+        </div>
+
+        <!-- Upload progress -->
+        <div class="p2p-section" id="p2pUploadProgress" style="display:none">
+            <div class="p2p-progress-card">
+                <div class="p2p-progress-name" id="p2pUploadName">Sending…</div>
+                <div class="p2p-progress-bar"><div class="p2p-progress-fill" id="p2pUploadFill"></div></div>
+                <div class="p2p-progress-sub" id="p2pUploadSub"></div>
+            </div>
+        </div>
+
+        <!-- Shared files header + batch select toggle -->
+        <div class="p2p-section">
+            <div class="p2p-section-hdr">
+                <i class="fas fa-inbox"></i> Shared Files
+                <span class="p2p-device-count" id="p2pFileCount">0</span>
+                <button class="p2p-select-toggle" onclick="p2pToggleSelect()" id="p2pSelectToggle" title="Select files">
+                    <i class="fas fa-check-double"></i>
+                </button>
+            </div>
+            <!-- Batch action bar (hidden by default) -->
+            <div class="p2p-batch-bar" id="p2pSelectBar" style="display:none">
+                <span><span id="p2pSelCount">0</span> selected</span>
+                <button class="p2p-batch-btn" onclick="p2pBatchDownload()">
+                    <i class="fas fa-download"></i> Download All
+                </button>
+                <button class="p2p-batch-btn cancel" onclick="p2pToggleSelect()">
+                    Cancel
+                </button>
+            </div>
+            <div class="p2p-file-list" id="p2pFileList">
+                <div class="p2p-empty"><i class="fas fa-inbox"></i> No files shared yet</div>
+            </div>
+        </div>
+
+        <!-- Download progress (for receiver) -->
+        <div class="p2p-section" id="p2pDlProgress" style="display:none">
+            <div class="p2p-progress-card dl">
+                <div class="p2p-progress-name" id="p2pDlName">Downloading…</div>
+                <div class="p2p-progress-bar"><div class="p2p-progress-fill" id="p2pDlFill"></div></div>
+                <div class="p2p-progress-sub" id="p2pDlSub"></div>
+            </div>
+        </div>
+
+        <!-- Transfer History -->
+        <div class="p2p-section">
+            <div class="p2p-section-hdr">
+                <i class="fas fa-history"></i> History
+                <button class="p2p-clear-hist" onclick="p2pClearHistory()" title="Clear history">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+            <div class="p2p-history-list" id="p2pHistory">
+                <div class="p2p-empty"><i class="fas fa-history"></i> No transfer history</div>
+            </div>
         </div>
     </div>
 
-    <!-- Pagination -->
-    <nav class="pag-bar" id="pagBar">
-        <button class="pg-btn" onclick="previousPage()" disabled id="prevBtn">
-            <i class="fas fa-chevron-left"></i>
+    <!-- ============  BOTTOM TAB BAR  ============ -->
+    <nav class="btm-tabs">
+        <button class="btm-tab active" onclick="switchView('files', this)">
+            <i class="fas fa-folder-open"></i>
+            <span>Files</span>
         </button>
-        <span id="pageInfo">1 of 1</span>
-        <button class="pg-btn" onclick="nextPage()" disabled id="nextBtn">
-            <i class="fas fa-chevron-right"></i>
+        <button class="btm-tab" onclick="switchView('share', this)">
+            <i class="fas fa-share-alt"></i>
+            <span>Share</span>
+            <span class="btm-badge" id="p2pBadge" style="display:none">0</span>
+        </button>
+        <button class="btm-tab" onclick="goToHome()">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
         </button>
     </nav>
 
@@ -78,6 +204,16 @@
     <span id="dirCount"   style="display:none">0</span>
     <span id="fileCount"  style="display:none">0</span>
     <span id="totalSize"  style="display:none">0</span>
+
+    <!--  PREVIEW MODAL  -->
+    <div id="previewModal" class="preview-modal" style="display:none" onclick="if(event.target===this)closePreview()">
+        <div class="preview-header">
+            <span class="preview-title" id="previewTitle"></span>
+            <button class="preview-close" onclick="closePreview()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="preview-body" id="previewBody"></div>
+        <div class="preview-footer" id="previewFooter"></div>
+    </div>
 
     <!--  DOWNLOAD OVERLAY  -->
     <div id="dlOverlay" class="dl-overlay" style="display:none">
@@ -99,7 +235,7 @@
     <div id="helpModal"  class="modal" style="display:none"></div>
     <div id="aboutModal" class="modal" style="display:none"></div>
 
-    <script src="/static/js/browser.js?v=8"></script>
+    <script src="/static/js/browser.js?v=11"></script>
 
 </body>
 </html>
