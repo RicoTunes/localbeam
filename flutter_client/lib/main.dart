@@ -1,21 +1,37 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/peer_service.dart';
-import 'screens/connect_screen.dart';
 import 'screens/main_shell.dart';
+
+/// Trust all certificates so Image.network works with self-signed HTTPS
+class _TrustAllCerts extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Trust self-signed certificates globally (local network only)
+  HttpOverrides.global = _TrustAllCerts();
 
   // Initialise PeerService (loads stored device name)
   final peerService = PeerService();
   await peerService.init();
 
+  // Create ApiService and load auth state
+  final apiService = ApiService();
+  await apiService.loadAuthState();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => apiService),
         ChangeNotifierProvider(create: (_) => peerService),
       ],
       child: const WirelessTransferApp(),
@@ -34,10 +50,7 @@ class WirelessTransferApp extends StatelessWidget {
       themeMode: ThemeMode.dark,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
-      home: Consumer<ApiService>(
-        builder: (context, api, _) =>
-            api.isConnected ? const MainShell() : const ConnectScreen(),
-      ),
+      home: const MainShell(),
     );
   }
 

@@ -55,7 +55,7 @@ class FileCard extends StatelessWidget {
                         ),
                       ),
                       if (!item.isDirectory)
-                        _TypeBadge(item.extension?.toUpperCase() ?? '?'),
+                        _TypeBadge(item.extension.toUpperCase()),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -164,7 +164,7 @@ class _FileIconBubble extends StatelessWidget {
             end: Alignment.bottomRight)
       );
     }
-    final ext = (item.extension ?? '').toLowerCase();
+    final ext = item.extension.toLowerCase();
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'heic']
         .contains(ext)) {
       return (

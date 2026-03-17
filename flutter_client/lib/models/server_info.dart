@@ -19,7 +19,7 @@ class ServerInfo {
   factory ServerInfo.fromJson(Map<String, dynamic> json) {
     return ServerInfo(
       ip: json['ip'] as String? ?? '',
-      port: (json['port'] as num?)?.toInt() ?? 5001,
+      port: (json['port'] as num?)?.toInt() ?? 5000,
       fastPort: (json['fast_port'] as num?)?.toInt() ?? 5002,
       directory: json['directory'] as String? ?? '',
       version: json['version'] as String? ?? '1.0',

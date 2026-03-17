@@ -8,31 +8,84 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <title>Files · Wireless Transfer</title>
+    <title>LocalBeam</title>
     <link rel="stylesheet" href="/static/css/font-awesome.min.css">
     <link rel="stylesheet" href="/static/css/poppins.css">
-    <link rel="stylesheet" href="/static/css/browser.css?v=11">
+    <link rel="stylesheet" href="/static/css/browser.css?v=49">
 </head>
 <body>
+
+    <!-- Sidebar Menu -->
+    <div id="sidebarMenu" class="sidebar-menu">
+        <div class="sidebar-content">
+            <div class="mob-sidebar-brand">
+                <div class="mob-brand-icon">📡</div>
+                <div class="mob-brand-text">
+                    <h2>LocalBeam</h2>
+                    <p>Dashboard</p>
+                </div>
+                <button class="sidebar-close" onclick="closeSidebar()" title="Close menu">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mob-sidebar-nav">
+                <div class="sidebar-item" onclick="openSidebarView('share')">
+                    <i class="fas fa-share-alt"></i> <span>Share</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('chat')">
+                    <i class="fas fa-comments"></i> <span>Chat</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('calls')">
+                    <i class="fas fa-phone-alt"></i> <span>Calls</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('groups')">
+                    <i class="fas fa-users"></i> <span>Groups</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('bots')">
+                    <i class="fas fa-brain"></i> <span>BEAM AI</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('status')">
+                    <i class="fas fa-circle-notch"></i> <span>Status</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('files')">
+                    <i class="fas fa-folder-open"></i> <span>Files</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('account')">
+                    <i class="fas fa-user-circle"></i> <span>Account</span>
+                </div>
+                <div class="sidebar-item" onclick="openSidebarView('subscription')">
+                    <i class="fas fa-crown" style="color:#FFD700"></i> <span>Premium</span>
+                </div>
+            </div>
+            <div class="mob-sidebar-footer">
+                <a href="/dashboard" class="mob-sidebar-desktop-link">
+                    <i class="fas fa-desktop"></i> <span>Desktop View</span>
+                </a>
+            </div>
+        </div>
+    </div>
 
     <!--  APP SHELL  -->
 
     <!-- App bar -->
     <header class="app-bar">
-        <button class="ab-btn" onclick="goUp()" title="Go up" id="btnGoUp">
-            <i class="fas fa-arrow-left"></i>
+        <button class="hamburger-btn" onclick="openSidebar()" title="Menu">
+            <i class="fas fa-bars"></i>
         </button>
         <div class="ab-center">
-            <span class="ab-title" id="viewTitle">Files</span>
-            <span class="ab-path" id="pathDisplay">Loading</span>
+            <span class="ab-title" id="viewTitle">Share</span>
+            <span class="ab-path" id="pathDisplay">Phone-to-Phone</span>
         </div>
+        <button class="ab-btn" onclick="goUp()" title="Go up" id="btnGoUp" style="display:none">
+            <i class="fas fa-arrow-left"></i>
+        </button>
         <button class="ab-btn" onclick="refreshBrowser()" title="Refresh" id="btnRefresh">
             <i class="fas fa-rotate-right"></i>
         </button>
     </header>
 
     <!-- ============  VIEW: FILES  ============ -->
-    <div class="view active" id="view-files">
+    <div class="view" id="view-files">
 
         <!-- Search bar -->
         <div class="search-wrap">
@@ -76,7 +129,7 @@
     </div>
 
     <!-- ============  VIEW: SHARE (phone-to-phone)  ============ -->
-    <div class="view" id="view-share">
+    <div class="view active" id="view-share">
 
         <!-- Device info -->
         <div class="p2p-section">
@@ -114,6 +167,23 @@
             </div>
             <div class="p2p-device-list" id="p2pDeviceList">
                 <div class="p2p-empty"><i class="fas fa-search"></i> Looking for devices…</div>
+            </div>
+        </div>
+
+        <!-- Online availability toggle -->
+        <div class="p2p-section">
+            <div class="p2p-online-toggle">
+                <div class="p2p-online-label">
+                    <i class="fas fa-broadcast-tower"></i>
+                    <div>
+                        <span>Available Online</span>
+                        <span class="online-status-text" id="onlineStatusText">Receive messages & files</span>
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="onlineToggle" checked onchange="toggleOnlineStatus(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
         </div>
 
@@ -180,20 +250,763 @@
         </div>
     </div>
 
+    <!-- ============  VIEW: CHAT  ============ -->
+    <div class="view" id="view-chat">
+        <div class="chat-container">
+            <!-- Conversation list -->
+            <div class="chat-list-panel" id="chatListPanel">
+                <div class="chat-list-header">
+                    <h3>Messages</h3>
+                    <div class="chat-header-actions">
+                        <button class="chat-action-btn" onclick="refreshChatList()" title="Refresh">
+                            <i class="fas fa-rotate-right"></i>
+                        </button>
+                        <button class="chat-action-btn" onclick="closeChatView()" title="Close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="chat-conversations" id="chatConversations">
+                    <div class="chat-empty"><i class="fas fa-inbox"></i> No conversations yet</div>
+                </div>
+            </div>
+
+            <!-- Chat window -->
+            <div class="chat-window-panel" id="chatWindowPanel" style="display:none">
+                <div class="chat-window-header">
+                    <button class="chat-back-btn" onclick="closeChatWindow()" title="Back to conversations">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="chat-user-info">
+                        <h3 id="chatWindowName">Chat</h3>
+                        <span class="chat-user-status" id="chatUserStatus">Online</span>
+                        <div class="typing-indicator" id="typingIndicator">
+                            <span>typing</span>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                    <div class="chat-delegation-badge" id="chatDelegationBadge" style="display:none">
+                        <i class="fas fa-robot"></i> AI Active
+                    </div>
+                    <div class="chat-header-call-btns">
+                        <button class="chat-call-btn" onclick="startCallFromChat('audio')" title="Voice call">
+                            <i class="fas fa-phone-alt"></i>
+                        </button>
+                        <button class="chat-call-btn" onclick="startCallFromChat('video')" title="Video call">
+                            <i class="fas fa-video"></i>
+                        </button>
+                    </div>
+                    <button class="chat-close-btn" onclick="closeChatView()" title="Close chat">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Inline call overlay (shown when calling from chat) -->
+                <div class="chat-call-overlay" id="mobChatCallOverlay" style="display:none">
+                  <div class="chat-call-overlay-header">
+                    <span class="chat-call-overlay-name" id="mobChatCallOverlayName">Calling...</span>
+                    <span class="chat-call-overlay-timer" id="mobChatCallOverlayTimer">00:00</span>
+                  </div>
+                  <div class="chat-call-overlay-media">
+                    <div id="mobChatCallAvatarSection" class="mob-call-avatar-section" style="display:none">
+                      <div class="mob-call-avatar-circle"><i class="fas fa-user"></i></div>
+                      <span id="mobChatCallAvatarName" class="mob-call-avatar-name">Audio Call</span>
+                      <div class="mob-call-audio-wave"><span></span><span></span><span></span><span></span><span></span></div>
+                    </div>
+                    <video id="mobChatRemoteVideo" class="mob-call-remote-video" autoplay playsinline style="display:none" onclick="swapVideos('mobile')"></video>
+                    <video id="mobChatLocalVideo" class="mob-call-local-video" autoplay playsinline muted style="display:none" onclick="swapVideos('mobile')"></video>
+                    <audio id="mobChatRemoteAudio" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none"></audio>
+                  </div>
+                  <div class="chat-call-overlay-controls">
+                    <button class="mob-call-ctrl-btn" id="mobChatBtnToggleMute" onclick="mobToggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                    <button class="mob-call-ctrl-btn" id="mobChatBtnToggleCamera" onclick="mobToggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                    <button class="mob-call-ctrl-btn switch-media" id="mobChatBtnSwitchMedia" onclick="mobSwitchCallMedia()" title="Switch to Video"><i class="fas fa-video"></i></button>
+                    <button class="mob-call-ctrl-btn screen-share" id="mobChatBtnScreenShare" onclick="mobToggleScreenShare()" title="Share Screen"><i class="fas fa-desktop"></i></button>
+                    <button class="mob-call-ctrl-btn swap" id="mobChatBtnSwapVideo" onclick="swapVideos('mobile')" title="Swap views" style="display:none"><i class="fas fa-exchange-alt"></i></button>
+                    <button class="mob-call-ctrl-btn pip-btn" id="mobChatBtnPip" onclick="mobEnterPiP()" title="Mini view"><i class="fas fa-compress"></i></button>
+                    <button class="mob-call-ctrl-btn end" onclick="mobEndCall()" title="End"><i class="fas fa-phone-slash"></i></button>
+                  </div>
+                </div>
+
+                <div style="position:relative">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="chat-loading"><i class="fas fa-spinner fa-spin"></i></div>
+                </div>
+
+                <button id="mobChatScrollBtn" class="mob-scroll-bottom-btn" onclick="document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight" style="display:none" title="Scroll to bottom"><i class="fas fa-chevron-down"></i></button>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="chat-media-toolbar">
+                        <button class="chat-media-btn" onclick="startVoiceRecord()" title="Record voice" id="voiceRecordBtn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="chat-media-btn" onclick="document.getElementById('filePicker').click()" title="Send file">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <input type="file" id="filePicker" style="display:none" accept="image/*,video/*,.pdf,.doc,.docx,.txt" multiple onchange="handleFileUpload(event)">
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: flex-end;">
+                        <textarea id="chatInput" class="chat-input-field" placeholder="Type a message..." 
+                                  rows="1" maxlength="5000" style="flex: 1;"></textarea>
+                        <button class="chat-send-btn" onclick="sendChatMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Voice recorder overlay -->
+                <div id="voiceRecorderOverlay" class="voice-recorder-overlay" style="display:none">
+                    <div class="voice-recorder-box">
+                        <div class="recording-indicator">
+                            <span class="recording-dot"></span>
+                            <span id="recordingTime">0:00</span>
+                        </div>
+                        <div class="recording-waveform">
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                            <div class="wave"></div>
+                        </div>
+                        <div class="recorder-controls">
+                            <button class="recorder-cancel" onclick="cancelVoiceRecord()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button class="recorder-send" onclick="sendVoiceRecord()">
+                                <i class="fas fa-check"></i> Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============  VIEW: STATUS  ============ -->
+    <div class="view" id="view-status">
+        <div class="status-view-content">
+            <!-- Not logged in prompt -->
+            <div id="statusAuthPrompt" class="status-auth-prompt">
+                <div class="status-auth-icon"><i class="fas fa-lock"></i></div>
+                <p>Login to view and post statuses</p>
+                <button class="mob-btn mob-btn-primary" onclick="switchView('account', document.querySelector('.btm-tab:last-child'))">
+                    <i class="fas fa-sign-in-alt"></i> Go to Account
+                </button>
+            </div>
+
+            <!-- Logged in content -->
+            <div id="statusContent" style="display:none">
+                <!-- My Status row -->
+                <div class="status-my-row" onclick="statusMyRowClick()">
+                    <div class="status-avatar-wrap" id="statusMyAvatar">
+                        <div class="status-avatar-circle status-no-story">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="status-add-icon"><i class="fas fa-plus"></i></div>
+                    </div>
+                    <div class="status-my-info">
+                        <span class="status-my-name">My Status</span>
+                        <span class="status-my-sub" id="statusMySub">Tap to add status update</span>
+                    </div>
+                </div>
+
+                <!-- Recent updates -->
+                <div class="status-section-label" id="statusRecentLabel" style="display:none">RECENT UPDATES</div>
+                <div id="statusFeedList" class="status-feed-list"></div>
+
+                <!-- Empty state -->
+                <div id="statusEmptyState" class="status-empty" style="display:none">
+                    <i class="fas fa-circle-notch"></i>
+                    <p>No recent status updates</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status FAB -->
+        <button class="status-fab" id="statusFab" onclick="statusShowPostSheet()" style="display:none">
+            <i class="fas fa-camera"></i>
+        </button>
+    </div>
+
+    <!-- ============  VIEW: CALLS  ============ -->
+    <div class="view" id="view-calls">
+        <div class="mob-calls-content">
+            <!-- Incoming Call Banner (global, also shown at top) -->
+            <div id="mobCallIncomingBanner" class="mob-call-incoming-banner" style="display:none">
+                <div class="mob-call-incoming-info">
+                    <span class="mob-call-incoming-icon ringing"><i class="fas fa-phone-volume"></i></span>
+                    <div class="mob-call-incoming-text">
+                        <span id="mobCallIncomingName">Incoming call...</span>
+                        <span id="mobCallIncomingType" class="mob-call-type-badge">Audio</span>
+                    </div>
+                </div>
+                <div class="mob-call-incoming-actions">
+                    <button class="mob-call-btn accept" onclick="mobAnswerCall()">
+                        <i class="fas fa-phone-alt"></i>
+                    </button>
+                    <button class="mob-call-btn decline" onclick="mobRejectCall()">
+                        <i class="fas fa-phone-slash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Call Container -->
+            <div id="mobCallActiveContainer" class="mob-call-active" style="display:none">
+                <div class="mob-call-active-header">
+                    <div class="mob-call-active-info">
+                        <i class="fas fa-phone-alt"></i>
+                        <span id="mobCallActiveName">Call in progress</span>
+                    </div>
+                    <span class="mob-call-timer" id="mobCallTimer">00:00</span>
+                </div>
+                <div id="mobCallMediaContainer" class="mob-call-media">
+                    <!-- Audio-only avatar -->
+                    <div id="mobCallAvatarSection" class="mob-call-avatar-section" style="display:none">
+                        <div class="mob-call-avatar-circle"><i class="fas fa-user"></i></div>
+                        <span id="mobCallAvatarName" class="mob-call-avatar-name">Audio Call</span>
+                        <div class="mob-call-audio-wave">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <!-- Video elements -->
+                    <video id="mobRemoteVideo" class="mob-call-remote-video" autoplay playsinline style="display:none" onclick="swapVideos('mobile')"></video>
+                    <video id="mobLocalVideo" class="mob-call-local-video" autoplay playsinline muted style="display:none" onclick="swapVideos('mobile')"></video>
+                    <audio id="mobRemoteAudio" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none"></audio>
+                </div>
+                <div class="mob-call-controls">
+                    <button class="mob-call-ctrl-btn" id="mobBtnToggleMute" onclick="mobToggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                    <button class="mob-call-ctrl-btn" id="mobBtnToggleCamera" onclick="mobToggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                    <button class="mob-call-ctrl-btn switch-media" id="mobBtnSwitchMedia" onclick="mobSwitchCallMedia()" title="Switch to Video"><i class="fas fa-video"></i></button>
+                    <button class="mob-call-ctrl-btn screen-share" id="mobBtnScreenShare" onclick="mobToggleScreenShare()" title="Share Screen"><i class="fas fa-desktop"></i></button>
+                    <button class="mob-call-ctrl-btn swap" id="mobBtnSwapVideo" onclick="swapVideos('mobile')" title="Swap views" style="display:none"><i class="fas fa-exchange-alt"></i></button>
+                    <button class="mob-call-ctrl-btn pip-btn" id="mobBtnPip" onclick="mobEnterPiP()" title="Mini view"><i class="fas fa-compress"></i></button>
+                    <button class="mob-call-ctrl-btn end" onclick="mobEndCall()" title="End"><i class="fas fa-phone-slash"></i></button>
+                </div>
+            </div>
+
+            <!-- Start Call -->
+            <div class="mob-section-card" id="mobCallStartSection">
+                <h4><i class="fas fa-phone-alt" style="color:#667EEA"></i> Start a Call</h4>
+                <p class="mob-muted" style="margin-bottom:12px">Select a device to call</p>
+                <div id="mobCallDeviceList" class="mob-call-device-list">
+                    <div class="mob-empty"><i class="fas fa-wifi"></i> Looking for devices...</div>
+                </div>
+            </div>
+
+            <!-- Call History -->
+            <div class="mob-section-card">
+                <h4><i class="fas fa-history" style="color:#94A3B8"></i> Call History</h4>
+                <div id="mobCallHistoryList" class="mob-call-history-list">
+                    <div class="mob-empty"><i class="fas fa-phone-alt"></i> No recent calls</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============  VIEW: GROUPS  ============ -->
+    <div class="view" id="view-groups">
+        <div class="mob-groups-content">
+            <!-- Group list panel -->
+            <div class="mob-groups-list-panel" id="mobGroupsListPanel">
+                <div class="mob-groups-header">
+                    <h3>Groups</h3>
+                    <button class="mob-icon-btn" onclick="mobOpenCreateGroup()" title="Create group">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div id="mobGroupsList" class="mob-groups-list">
+                    <div class="mob-empty"><i class="fas fa-users"></i> No groups yet</div>
+                </div>
+            </div>
+
+            <!-- Group chat window -->
+            <div id="mobGroupChatPanel" class="mob-group-chat-panel" style="display:none">
+                <div class="mob-group-chat-header">
+                    <button class="mob-back-btn" onclick="mobCloseGroupChat()">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="mob-group-chat-info">
+                        <h3 id="mobGroupChatName">Group</h3>
+                        <span id="mobGroupChatMembers" class="mob-muted">0 members</span>
+                    </div>
+                    <button class="mob-icon-btn" onclick="mobStartGroupCall('audio')" title="Group audio call">
+                        <i class="fas fa-phone-alt"></i>
+                    </button>
+                    <button class="mob-icon-btn" onclick="mobStartGroupCall('video')" title="Group video call">
+                        <i class="fas fa-video"></i>
+                    </button>
+                    <button class="mob-icon-btn" onclick="mobOpenGroupInfo()" title="Info">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                </div>
+
+                <!-- Group Call Overlay -->
+                <div id="mobGroupCallOverlay" class="mob-group-call-overlay" style="display:none">
+                    <div class="mob-group-call-header">
+                        <span id="mobGroupCallTitle" class="mob-group-call-title">Group Call</span>
+                        <span id="mobGroupCallTimer" class="mob-group-call-timer">00:00</span>
+                    </div>
+                    <div id="mobGroupCallGrid" class="mob-group-call-grid">
+                        <!-- Participant tiles injected dynamically -->
+                    </div>
+                    <div class="mob-group-call-controls">
+                        <button class="mob-call-ctrl-btn" id="mobGrpBtnMute" onclick="mobGrpToggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                        <button class="mob-call-ctrl-btn" id="mobGrpBtnCamera" onclick="mobGrpToggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                        <button class="mob-call-ctrl-btn end" onclick="mobGrpEndCall()" title="Leave"><i class="fas fa-phone-slash"></i></button>
+                    </div>
+                </div>
+
+                <div class="mob-group-messages" id="mobGroupMessages">
+                    <div class="chat-loading"><i class="fas fa-spinner fa-spin"></i></div>
+                </div>
+                <div class="mob-group-input-area">
+                    <div class="chat-media-toolbar">
+                        <button class="chat-media-btn" onclick="mobStartGroupVoiceRecord()" title="Record voice" id="mobGroupVoiceRecordBtn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="chat-media-btn" onclick="document.getElementById('mobGroupFilePicker').click()" title="Send file">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <input type="file" id="mobGroupFilePicker" style="display:none" accept="image/*,video/*,.pdf,.doc,.docx,.txt" multiple onchange="mobHandleGroupFileUpload(event)">
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: flex-end;">
+                        <textarea id="mobGroupInput" class="mob-chat-input" placeholder="Type a message..." rows="1" maxlength="5000" style="flex: 1;"></textarea>
+                        <button class="mob-send-btn" onclick="mobSendGroupMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Voice recorder overlay for group chat -->
+                <div id="mobGroupVoiceRecorderOverlay" class="voice-recorder-overlay" style="display:none">
+                    <div class="voice-recorder-box">
+                        <div class="recording-indicator">
+                            <span class="recording-dot"></span>
+                            <span id="mobGroupRecordingTime">0:00</span>
+                        </div>
+                        <div class="recording-waveform">
+                            <div class="wave"></div><div class="wave"></div><div class="wave"></div>
+                            <div class="wave"></div><div class="wave"></div>
+                        </div>
+                        <div class="recorder-controls">
+                            <button class="recorder-cancel" onclick="mobCancelGroupVoiceRecord()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button class="recorder-send" onclick="mobSendGroupVoiceRecord()">
+                                <i class="fas fa-check"></i> Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============  VIEW: BOTS / AI ASSISTANT  ============ -->
+    <div class="view" id="view-bots">
+        <div class="mob-bots-content">
+
+            <!-- AI Chat Card — Fullscreen chat-like experience -->
+            <div class="mob-ai-chat-card">
+                <!-- AI Header with gradient glow -->
+                <div class="mob-ai-header">
+                    <div class="mob-ai-header-left">
+                        <button class="mob-ai-back-btn" onclick="mobAiGoBack()" title="Back"><i class="fas fa-arrow-left"></i></button>
+                        <div class="mob-ai-avatar-ring">
+                            <div class="mob-ai-avatar-main"><i class="fas fa-brain"></i></div>
+                        </div>
+                        <div class="mob-ai-header-name">BEAM AI</div>
+                    </div>
+                    <div class="mob-ai-header-actions">
+                        <button class="mob-ai-hdr-btn" onclick="mobToggleAiPanel('tools')" title="Tools"><i class="fas fa-th-large"></i></button>
+                        <button class="mob-ai-hdr-btn" onclick="mobAiShowHistory()" title="History"><i class="fas fa-history"></i></button>
+                        <button class="mob-ai-hdr-btn" onclick="mobAiClearHistory()" title="Clear"><i class="fas fa-broom"></i></button>
+                        <button class="mob-ai-hdr-btn" onclick="mobToggleAiPanel('delegation')" title="Delegation"><i class="fas fa-user-shield"></i></button>
+                        <button class="mob-ai-hdr-btn mob-wake-btn" id="mobWakeWordBtn" onclick="mobToggleWakeWord()" title="Hey Beam"><i class="fas fa-satellite-dish"></i></button>
+                    </div>
+
+                    <!-- Wake Word Floating Indicator (Mobile) -->
+                    <div id="mobWakeWordIndicator" class="mob-wake-word-indicator" style="display:none">
+                      <div class="wake-word-pulse"></div>
+                      <i class="fas fa-satellite-dish"></i>
+                      <span>Listening for "Hey Beam"...</span>
+                      <button class="wake-word-close" onclick="mobToggleWakeWord()"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+
+
+
+                <!-- AI Messages Area -->
+                <div class="mob-ai-messages-wrap">
+                <div id="mobAiChatMessages" class="mob-ai-messages-area">
+                    <div class="mob-ai-msg bot">
+                        <div class="mob-ai-avatar"><i class="fas fa-brain"></i></div>
+                        <div class="mob-ai-bubble">Hey! I'm <strong>BEAM AI</strong>. Ask me anything — I can search the web, set reminders, analyze files, and much more.</div>
+                    </div>
+                </div>
+
+                <button id="mobAiScrollBtn" class="mob-scroll-bottom-btn" onclick="document.getElementById('mobAiChatMessages').scrollTop=document.getElementById('mobAiChatMessages').scrollHeight" style="display:none" title="Scroll to bottom"><i class="fas fa-chevron-down"></i></button>
+                </div>
+
+                <!-- AI Attachment Preview Strip -->
+                <div id="mobAiAttachPreview" class="mob-ai-attach-preview" style="display:none">
+                    <div id="mobAiAttachThumb" class="mob-ai-attach-thumb"></div>
+                    <div id="mobAiAttachName" class="mob-ai-attach-name"></div>
+                    <button class="mob-ai-attach-remove" onclick="mobAiClearAttach()"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Voice Recording UI -->
+                <div id="mobAiVoiceBar" class="mob-ai-voice-bar" style="display:none">
+                    <div class="mob-ai-voice-pulse"></div>
+                    <span id="mobAiVoiceTimer" class="mob-ai-voice-timer">0:00</span>
+                    <span class="mob-ai-voice-label">Recording...</span>
+                    <button class="mob-ai-voice-cancel" onclick="mobAiCancelVoice()"><i class="fas fa-times"></i></button>
+                    <button class="mob-ai-voice-send" onclick="mobAiSendVoice()"><i class="fas fa-paper-plane"></i></button>
+                </div>
+
+                <!-- AI Input Bar — Modern with attachment options -->
+                <div class="mob-ai-input-bar" id="mobAiInputBar">
+                    <button class="mob-ai-attach-btn" onclick="mobAiShowAttachMenu()"><i class="fas fa-plus-circle"></i></button>
+                    <input type="text" id="mobAiChatInput" class="mob-ai-text-input" placeholder="Message BEAM AI..." maxlength="4000"
+                           onkeypress="if(event.key==='Enter'){event.preventDefault();mobSendAiMessage()}">
+                    <button class="mob-ai-mic-btn" onclick="mobAiStartVoiceNote()" id="mobAiMicBtn"><i class="fas fa-microphone"></i></button>
+                    <button class="mob-ai-send-btn" onclick="mobSendAiMessage()" id="mobAiSendBtn"><i class="fas fa-paper-plane"></i></button>
+                </div>
+
+                <!-- Attachment Menu Popup -->
+                <div id="mobAiAttachMenu" class="mob-ai-attach-menu" style="display:none">
+                    <div class="mob-ai-attach-grid">
+                        <button class="mob-ai-attach-opt" onclick="mobAiTakePhoto()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#06B6D4,#3B82F6)"><i class="fas fa-camera"></i></div>
+                            <span>Camera</span>
+                        </button>
+                        <button class="mob-ai-attach-opt" onclick="mobAiPickImage()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#667EEA,#764BA2)"><i class="fas fa-image"></i></div>
+                            <span>Gallery</span>
+                        </button>
+                        <button class="mob-ai-attach-opt" onclick="mobAiScanDocument()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#8B5CF6,#EC4899)"><i class="fas fa-expand"></i></div>
+                            <span>Scan</span>
+                        </button>
+                        <button class="mob-ai-attach-opt" onclick="mobAiPickDocument()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#EF4444,#F59E0B)"><i class="fas fa-file-pdf"></i></div>
+                            <span>Document</span>
+                        </button>
+                        <button class="mob-ai-attach-opt" onclick="mobAiPickFile()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#22C55E,#10B981)"><i class="fas fa-file-upload"></i></div>
+                            <span>File</span>
+                        </button>
+                        <button class="mob-ai-attach-opt" onclick="mobAiStartVoiceNote()">
+                            <div class="mob-ai-attach-icon" style="background:linear-gradient(135deg,#F59E0B,#EF4444)"><i class="fas fa-microphone"></i></div>
+                            <span>Voice</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hidden file inputs -->
+                <input type="file" id="mobAiImageInput" accept="image/*" style="display:none" onchange="mobAiOnImage(this)">
+                <input type="file" id="mobAiCameraInput" accept="image/*" capture="environment" style="display:none" onchange="mobAiOnImage(this)">
+                <input type="file" id="mobAiDocInput" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" style="display:none" onchange="mobAiOnDoc(this)">
+                <input type="file" id="mobAiFileInput" accept="*/*" style="display:none" onchange="mobAiOnFile(this)">
+            </div>
+
+
+
+            <!-- Delegation Panel -->
+            <div class="mob-section-card" id="mobAiDelegationPanel" style="display:none">
+                <h4 style="margin-bottom:10px;font-size:13px;color:#94A3B8"><i class="fas fa-user-shield" style="color:#A78BFA;margin-right:6px"></i> Chat Delegation</h4>
+                <p style="font-size:11px;color:#64748B;margin-bottom:10px">BEAM AI will reply to incoming messages on your behalf, protecting your privacy.</p>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                    <label style="font-size:12px;font-weight:600;color:#E2E8F0">Enable</label>
+                    <input type="checkbox" id="mobAiDelegToggle" onchange="mobUpdateDelegation()">
+                </div>
+                <select id="mobAiDelegStyle" class="mob-input" style="margin-bottom:8px;font-size:12px" onchange="mobUpdateDelegation()">
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual & Friendly</option>
+                    <option value="brief">Brief & Direct</option>
+                    <option value="formal">Formal</option>
+                </select>
+                <textarea id="mobAiDelegRules" class="mob-input" rows="2" placeholder="Custom rules (optional)..." maxlength="500" style="font-size:12px;resize:vertical"></textarea>
+                <button class="mob-btn mob-btn-primary" style="margin-top:8px;padding:6px 18px;font-size:12px;width:100%" onclick="mobSaveDelegationRules()">
+                    <i class="fas fa-check" style="margin-right:5px"></i> Done — Save Rules
+                </button>
+            </div>
+
+
+        </div>
+    </div>
+
+    <!-- ============  VIEW: ACCOUNT  ============ -->
+    <div class="view" id="view-account">
+        <div class="account-view-content">
+            <!-- Not logged in -->
+            <div id="mobAuthForms">
+                <div class="mob-auth-card">
+                    <div class="mob-auth-icon"><i class="fas fa-user-circle"></i></div>
+                    <h2>Account</h2>
+                    <div class="mob-auth-tabs">
+                        <button class="mob-auth-tab active" onclick="mobSwitchAuthTab('login')">Login</button>
+                        <button class="mob-auth-tab" onclick="mobSwitchAuthTab('register')">Register</button>
+                    </div>
+                    <!-- Login -->
+                    <div id="mobLoginForm" class="mob-auth-form">
+                        <input type="text" id="mobLoginId" class="mob-input" placeholder="Email or phone">
+                        <input type="password" id="mobLoginPw" class="mob-input" placeholder="Password">
+                        <button class="mob-btn mob-btn-primary" onclick="mobDoLogin()" id="mobLoginBtn">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                        <p class="mob-auth-msg" id="mobLoginMsg"></p>
+                    </div>
+                    <!-- Register -->
+                    <div id="mobRegForm" class="mob-auth-form" style="display:none">
+                        <input type="text" id="mobRegName" class="mob-input" placeholder="Your name">
+                        <input type="email" id="mobRegEmail" class="mob-input" placeholder="Email">
+                        <input type="tel" id="mobRegPhone" class="mob-input" placeholder="Phone (optional)">
+                        <input type="password" id="mobRegPw" class="mob-input" placeholder="Password (min 4)">
+                        <button class="mob-btn mob-btn-primary" onclick="mobDoRegister()" id="mobRegBtn">
+                            <i class="fas fa-user-plus"></i> Register
+                        </button>
+                        <p class="mob-auth-msg" id="mobRegMsg"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logged in -->
+            <div id="mobAccountInfo" style="display:none">
+                <div class="mob-account-card">
+                    <div class="mob-account-avatar"><i class="fas fa-user-circle"></i></div>
+                    <h3 id="mobAccountName">—</h3>
+                    <p id="mobAccountEmail" class="mob-account-sub">—</p>
+                    <button class="mob-btn mob-btn-danger" onclick="mobDoLogout()" style="margin-top:12px">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+
+                <!-- Add Friend -->
+                <div class="mob-section-card">
+                    <h4><i class="fas fa-user-plus"></i> Add Friend</h4>
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="mobAddFriendInput" class="mob-input" placeholder="Email or phone" style="flex:1">
+                        <button class="mob-btn mob-btn-primary" onclick="mobDoAddFriend()" style="padding:0 14px">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <p class="mob-auth-msg" id="mobAddFriendMsg"></p>
+                </div>
+
+                <!-- Contact Sync -->
+                <div class="mob-section-card">
+                    <h4><i class="fas fa-address-book"></i> Find Friends</h4>
+                    <button class="mob-btn mob-btn-outline" onclick="mobOpenContactSync()" style="width:100%" id="mobContactSyncTrigger">
+                        <i class="fas fa-address-book"></i> Sync Contacts
+                    </button>
+                    <div id="mobContactSyncPanel" style="display:none;margin-top:8px">
+                        <p class="mob-muted" style="font-size:12px;margin-bottom:6px">Paste phone numbers or emails (one per line)</p>
+                        <textarea id="mobContactSyncInput" class="mob-input" rows="4" placeholder="+1234567890&#10;friend@email.com" style="resize:vertical"></textarea>
+                        <div style="display:flex;gap:8px;margin-top:6px">
+                            <button class="mob-btn mob-btn-primary" onclick="mobDoContactSync()" style="flex:1" id="mobContactSyncBtn">
+                                <i class="fas fa-search"></i> Find
+                            </button>
+                            <button class="mob-btn mob-btn-outline" onclick="mobCloseContactSync()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="mobContactSyncResults" style="margin-top:8px"></div>
+                    </div>
+                </div>
+
+                <!-- Incoming Requests -->
+                <div id="mobIncomingWrap" class="mob-section-card" style="display:none">
+                    <h4><i class="fas fa-bell"></i> Friend Requests</h4>
+                    <div id="mobIncomingList"></div>
+                </div>
+
+                <!-- Outgoing Requests -->
+                <div id="mobOutgoingWrap" class="mob-section-card" style="display:none">
+                    <h4><i class="fas fa-paper-plane"></i> Sent Requests</h4>
+                    <div id="mobOutgoingList"></div>
+                </div>
+
+                <!-- Friends List -->
+                <div class="mob-section-card">
+                    <h4><i class="fas fa-user-friends"></i> My Friends</h4>
+                    <div id="mobFriendsList">
+                        <p class="mob-muted">No friends yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Desktop View Link -->
+            <div class="mob-desktop-link">
+                <a href="/dashboard" class="mob-btn mob-btn-outline">
+                    <i class="fas fa-desktop"></i> Switch to Desktop View
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============  GLOBAL INCOMING CALL OVERLAY ============ -->
+    <div id="mobGlobalCallBanner" class="mob-global-call-banner" style="display:none">
+        <div class="mob-gcb-inner">
+            <div class="mob-gcb-pulse"></div>
+            <div class="mob-gcb-info">
+                <i class="fas fa-phone-volume mob-gcb-icon"></i>
+                <div>
+                    <div class="mob-gcb-name" id="mobGlobalCallName">Incoming Call</div>
+                    <div class="mob-gcb-type" id="mobGlobalCallType">Audio Call</div>
+                </div>
+            </div>
+            <div class="mob-gcb-actions">
+                <button class="mob-gcb-btn accept" onclick="mobAnswerCall()">
+                    <i class="fas fa-phone-alt"></i>
+                </button>
+                <button class="mob-gcb-btn decline" onclick="mobRejectCall()">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal (mobile) -->
+    <div id="mobCreateGroupModal" class="mob-modal-overlay" style="display:none">
+        <div class="mob-modal-panel">
+            <div class="mob-modal-header">
+                <h3>Create Group</h3>
+                <button class="mob-icon-btn" onclick="mobCloseCreateGroup()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="mob-modal-body">
+                <input type="text" id="mobNewGroupName" class="mob-input" placeholder="Group name" maxlength="100">
+                <input type="text" id="mobNewGroupDesc" class="mob-input" placeholder="Description (optional)" maxlength="500" style="margin-top:8px">
+                <div style="margin-top:12px">
+                    <label class="mob-label">Add Members</label>
+                    <div id="mobNewGroupDevices" class="mob-member-picker"></div>
+                </div>
+            </div>
+            <div class="mob-modal-footer">
+                <button class="mob-btn" onclick="mobCloseCreateGroup()">Cancel</button>
+                <button class="mob-btn mob-btn-primary" onclick="mobCreateGroup()"><i class="fas fa-plus"></i> Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Info Modal (mobile) -->
+    <div id="mobGroupInfoModal" class="mob-modal-overlay" style="display:none">
+        <div class="mob-modal-panel">
+            <div class="mob-modal-header">
+                <h3 id="mobGroupInfoName">Group Info</h3>
+                <button class="mob-icon-btn" onclick="mobCloseGroupInfo()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="mob-modal-body">
+                <p id="mobGroupInfoDesc" class="mob-muted" style="margin-bottom:12px"></p>
+                <h4 style="font-size:13px;color:#667EEA;margin-bottom:8px"><i class="fas fa-users"></i> Members</h4>
+                <div id="mobGroupInfoMembers" class="mob-group-members-list"></div>
+            </div>
+            <div class="mob-modal-footer">
+                <button id="mobGroupInfoDeleteBtn" class="mob-btn mob-btn-danger" style="display:none" onclick="mobDeleteGroup()"><i class="fas fa-trash"></i> Delete</button>
+                <button class="mob-btn mob-btn-danger" onclick="mobLeaveGroup()"><i class="fas fa-sign-out-alt"></i> Leave</button>
+                <button class="mob-btn" onclick="mobCloseGroupInfo()">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- ============  SUBSCRIPTION / PREMIUM VIEW  ============ -->
+    <div class="view" id="view-subscription">
+        <div class="mob-section-card">
+            <div id="mobSubCurrentPlan" class="mob-sub-current-plan">
+                <div class="mob-sub-icon"><i class="fas fa-user"></i></div>
+                <div class="mob-sub-info">
+                    <h3 id="mobSubPlanName">Free Plan</h3>
+                    <p id="mobSubPlanExpiry"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Free Plan -->
+        <div class="mob-section-card mob-sub-plan-card">
+            <div class="mob-sub-plan-header free">
+                <h3>Free</h3>
+                <div class="mob-sub-price">₦0<span>/month</span></div>
+            </div>
+            <ul class="mob-sub-features">
+                <li><i class="fas fa-check"></i> Basic File Transfer</li>
+                <li><i class="fas fa-check"></i> E2E Encryption</li>
+                <li><i class="fas fa-check"></i> Chat & Messaging</li>
+                <li><i class="fas fa-check"></i> 1-on-1 Audio/Video Calls</li>
+                <li class="locked"><i class="fas fa-lock"></i> AI Chat Delegation</li>
+                <li class="locked"><i class="fas fa-lock"></i> AI Voice Call Answering</li>
+                <li class="locked"><i class="fas fa-lock"></i> Unlimited File Transfers</li>
+                <li class="locked"><i class="fas fa-lock"></i> Custom Bots</li>
+                <li class="locked"><i class="fas fa-lock"></i> Group Calls</li>
+            </ul>
+        </div>
+
+        <!-- Premium Plan -->
+        <div class="mob-section-card mob-sub-plan-card premium">
+            <div class="mob-sub-badge">RECOMMENDED</div>
+            <div class="mob-sub-plan-header gold">
+                <h3><i class="fas fa-crown"></i> Premium</h3>
+                <div class="mob-sub-price">₦5,000<span>/month</span></div>
+                <div class="mob-sub-price-alt">≈ $10.00 USD</div>
+            </div>
+            <ul class="mob-sub-features">
+                <li><i class="fas fa-check"></i> Everything in Free</li>
+                <li class="premium-feat"><i class="fas fa-star"></i> AI Chat Delegation</li>
+                <li class="premium-feat"><i class="fas fa-star"></i> AI Voice Call Answering</li>
+                <li class="premium-feat"><i class="fas fa-star"></i> Unlimited File Transfers</li>
+                <li class="premium-feat"><i class="fas fa-star"></i> Custom Bots</li>
+                <li class="premium-feat"><i class="fas fa-star"></i> Group Calls</li>
+            </ul>
+            <div id="mobSubUpgradeSection">
+                <div class="mob-sub-payment-methods">
+                    <p class="mob-sub-pay-label">Choose payment method:</p>
+                    <button class="mob-sub-pay-btn stripe-btn" onclick="mobStartStripeCheckout()">
+                        <i class="fab fa-cc-stripe"></i> Pay with Stripe (Card)
+                    </button>
+                    <button class="mob-sub-pay-btn paystack-btn" onclick="mobStartPaystackCheckout()">
+                        <i class="fas fa-credit-card"></i> Pay with Paystack (₦)
+                    </button>
+                    <div style="text-align:center;margin:8px 0;font-size:12px;color:#94A3B8">— or —</div>
+                    <button class="mob-sub-pay-btn trial-btn" onclick="mobStartFreeTrial()" style="background:linear-gradient(135deg,#22C55E,#16A34A);color:#fff">
+                        <i class="fas fa-gift"></i> Start 7-Day Free Trial
+                    </button>
+                </div>
+            </div>
+            <div id="mobSubManageSection" style="display:none">
+                <div class="mob-sub-active-badge"><i class="fas fa-check-circle"></i> Active</div>
+                <button class="mob-sub-cancel-btn" onclick="mobCancelSubscription()">Cancel Subscription</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ============  BOTTOM TAB BAR  ============ -->
     <nav class="btm-tabs">
-        <button class="btm-tab active" onclick="switchView('files', this)">
-            <i class="fas fa-folder-open"></i>
-            <span>Files</span>
-        </button>
-        <button class="btm-tab" onclick="switchView('share', this)">
+        <button class="btm-tab active" onclick="switchView('share', this)">
             <i class="fas fa-share-alt"></i>
             <span>Share</span>
             <span class="btm-badge" id="p2pBadge" style="display:none">0</span>
         </button>
-        <button class="btm-tab" onclick="goToHome()">
-            <i class="fas fa-home"></i>
-            <span>Home</span>
+        <button class="btm-tab" onclick="switchView('chat', this)">
+            <i class="fas fa-comments"></i>
+            <span>Chat</span>
+            <span class="btm-badge" id="chatBadge" style="display:none">0</span>
+        </button>
+        <button class="btm-tab" onclick="switchView('calls', this)">
+            <i class="fas fa-phone-alt"></i>
+            <span>Calls</span>
+            <span class="btm-badge" id="callBadge" style="display:none">0</span>
+        </button>
+        <button class="btm-tab" onclick="switchView('groups', this)">
+            <i class="fas fa-users"></i>
+            <span>Groups</span>
+        </button>
+        <button class="btm-tab" onclick="switchView('account', this)">
+            <i class="fas fa-user-circle"></i>
+            <span>Me</span>
+            <span class="btm-badge" id="friendReqBadge" style="display:none">0</span>
         </button>
     </nav>
 
@@ -231,11 +1044,255 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         CUSTOM VIDEO PLAYER MODAL
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="videoPlayerModal" class="modal" style="display: none;">
+        <div class="video-player-wrap">
+            <button class="player-close" onclick="closeVideoPlayer()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="custom-video-player">
+                <video id="customVideoElement" playsinline></video>
+                <div class="video-controls">
+                    <div class="progress-container">
+                        <input type="range" class="progress-bar" id="videoProgress" min="0" max="100" value="0">
+                        <div class="time-display">
+                            <span id="currentTime">0:00</span>
+                            <span id="duration">0:00</span>
+                        </div>
+                    </div>
+                    <div class="controls-row">
+                        <button class="btn-control" onclick="toggleVideoPlay()">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="btn-control" onclick="rewindVideo()">
+                            <i class="fas fa-redo"></i> -10s
+                        </button>
+                        <button class="btn-control" onclick="forwardVideo()">
+                            +10s <i class="fas fa-redo fa-flip-horizontal"></i>
+                        </button>
+                        <div class="volume-container">
+                            <button class="btn-control" onclick="toggleVideoMute()">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            <input type="range" class="volume-slider" id="videoVolume" min="0" max="100" value="100">
+                        </div>
+                        <select class="speed-select" id="videoSpeed" onchange="changeVideoSpeed()">
+                            <option value="0.5">0.5x</option>
+                            <option value="1" selected>1x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2">2x</option>
+                        </select>
+                        <button class="btn-control" id="videoFullscreenBtn" onclick="toggleVideoFullscreen()">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         CUSTOM AUDIO PLAYER MODAL
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="audioPlayerModal" class="modal" style="display: none;">
+        <div class="audio-player-wrap">
+            <button class="player-close" onclick="closeAudioPlayer()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="custom-audio-player">
+                <div class="audio-visualizer">
+                    <div class="vis-bar" style="--i:0"></div>
+                    <div class="vis-bar" style="--i:1"></div>
+                    <div class="vis-bar" style="--i:2"></div>
+                    <div class="vis-bar" style="--i:3"></div>
+                    <div class="vis-bar" style="--i:4"></div>
+                    <div class="vis-bar" style="--i:5"></div>
+                    <div class="vis-bar" style="--i:6"></div>
+                    <div class="vis-bar" style="--i:7"></div>
+                </div>
+                <audio id="customAudioElement" style="display: none;"></audio>
+                <div class="audio-info">
+                    <span id="audioName">Now Playing</span>
+                </div>
+                <div class="audio-controls">
+                    <div class="progress-container">
+                        <input type="range" class="progress-bar" id="audioProgress" min="0" max="100" value="0">
+                        <div class="time-display">
+                            <span id="audioCurrentTime">0:00</span>
+                            <span id="audioDuration">0:00</span>
+                        </div>
+                    </div>
+                    <div class="controls-row">
+                        <button class="btn-control" onclick="rewindAudio()">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button class="btn-control btn-play-large" onclick="toggleAudioPlay()">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="btn-control" onclick="forwardAudio()">
+                            <i class="fas fa-redo fa-flip-horizontal"></i>
+                        </button>
+                    </div>
+                    <div class="controls-row">
+                        <div class="volume-container">
+                            <button class="btn-control" onclick="toggleAudioMute()">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            <input type="range" class="volume-slider" id="audioVolume" min="0" max="100" value="100">
+                        </div>
+                        <select class="speed-select" id="audioSpeed" onchange="changeAudioSpeed()">
+                            <option value="0.5">0.5x</option>
+                            <option value="1" selected>1x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2">2x</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         TRANSFER REQUEST MODAL
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="transferRequestModal" class="modal" style="display: none;">
+        <div class="request-panel">
+            <div class="request-header">
+                <h3>📥 Incoming File Transfer</h3>
+                <button class="btn-close" onclick="closeTransferRequest()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="request-content" id="requestContent">
+                <div class="request-file">
+                    <div class="file-icon-large">
+                        <i class="fas fa-file"></i>
+                    </div>
+                    <div class="file-details">
+                        <p id="requestFileName" class="file-name">filename.ext</p>
+                        <p id="requestFileSize" class="file-size">0 MB</p>
+                        <p id="requestFromSender" class="from-sender">From: Unknown Device</p>
+                    </div>
+                </div>
+            </div>
+            <div class="request-actions">
+                <button class="btn btn-danger" onclick="rejectCurrentRequest()">
+                    <i class="fas fa-times"></i> Reject
+                </button>
+                <button class="btn btn-primary" onclick="acceptCurrentRequest()">
+                    <i class="fas fa-check"></i> Accept
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STATUS POST SHEET
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="statusPostSheet" class="status-sheet" style="display:none">
+        <div class="status-sheet-backdrop" onclick="statusClosePostSheet()"></div>
+        <div class="status-sheet-panel">
+            <div class="status-sheet-handle"></div>
+            <div class="status-sheet-title">Create Status</div>
+            <div class="status-sheet-options">
+                <button onclick="statusPickImage()">
+                    <i class="fas fa-image"></i>
+                    <span>Photo</span>
+                </button>
+                <button onclick="statusPickCamera()">
+                    <i class="fas fa-camera"></i>
+                    <span>Camera</span>
+                </button>
+                <button onclick="statusClosePostSheet();document.getElementById('statusFileInput').click()">
+                    <i class="fas fa-video"></i>
+                    <span>Video</span>
+                </button>
+                <button onclick="statusOpenTextEditor()">
+                    <i class="fas fa-font"></i>
+                    <span>Text</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="statusFileInput" accept="image/*,video/mp4,video/*" style="display:none" onchange="statusHandleFileSelected(event)">
+    <input type="file" id="statusCameraInput" accept="image/*,video/*" capture="environment" style="display:none" onchange="statusHandleFileSelected(event)">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STATUS TEXT EDITOR
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="statusTextEditor" class="status-text-editor" style="display:none">
+        <div class="status-te-header">
+            <button onclick="statusCloseTextEditor()"><i class="fas fa-times"></i></button>
+            <span>Text Status</span>
+            <button onclick="statusPostText()"><i class="fas fa-paper-plane"></i> Post</button>
+        </div>
+        <div class="status-te-preview" id="statusTePreview">
+            <textarea id="statusTeInput" placeholder="Type a status..." maxlength="500"></textarea>
+        </div>
+        <div class="status-te-colors">
+            <button class="stc-btn active" data-bg="#667eea,#764ba2" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#667eea,#764ba2)"></button>
+            <button class="stc-btn" data-bg="#f7971e,#ffd200" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#f7971e,#ffd200)"></button>
+            <button class="stc-btn" data-bg="#00c6ff,#0072ff" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#00c6ff,#0072ff)"></button>
+            <button class="stc-btn" data-bg="#f857a6,#ff5858" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#f857a6,#ff5858)"></button>
+            <button class="stc-btn" data-bg="#11998e,#38ef7d" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></button>
+            <button class="stc-btn" data-bg="#2c3e50,#4ca1af" onclick="statusPickBg(this)" style="background:linear-gradient(135deg,#2c3e50,#4ca1af)"></button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STATUS IMAGE CAPTION DIALOG
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="statusCaptionDialog" class="status-caption-dialog" style="display:none">
+        <div class="status-cd-header">
+            <button onclick="statusCloseCaptionDialog()"><i class="fas fa-times"></i></button>
+            <span>Add Caption</span>
+            <button onclick="statusPostImage()"><i class="fas fa-paper-plane"></i> Post</button>
+        </div>
+        <div class="status-cd-preview">
+            <img id="statusCaptionImg" src="">
+            <video id="statusCaptionVid" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls playsinline></video>
+        </div>
+        <div class="status-cd-input">
+            <input type="text" id="statusCaptionText" placeholder="Add a caption..." maxlength="500">
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STORY VIEWER (FULLSCREEN)
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="storyViewer" class="story-viewer" style="display:none">
+        <div class="story-viewer-container" id="storyViewerContainer"></div>
+    </div>
+
     <!--  HELP MODAL (kept for completeness)  -->
     <div id="helpModal"  class="modal" style="display:none"></div>
     <div id="aboutModal" class="modal" style="display:none"></div>
 
-    <script src="/static/js/browser.js?v=11"></script>
+    <!-- PiP Floating Window -->
+    <div id="mobPipWindow" class="mob-pip-window" style="display:none">
+      <div class="mob-pip-header" id="mobPipDragHandle">
+        <span class="mob-pip-title" id="mobPipTitle">Call</span>
+        <button class="mob-pip-close" onclick="mobEndCall()" title="End"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="mob-pip-video-area">
+        <video id="mobPipRemoteVideo" autoplay playsinline></video>
+        <video id="mobPipLocalVideo" autoplay playsinline muted class="mob-pip-local-video"></video>
+        <div class="mob-pip-avatar" id="mobPipAvatar" style="display:none">
+          <i class="fas fa-user"></i>
+        </div>
+      </div>
+      <div class="mob-pip-controls">
+        <button class="mob-pip-ctrl-btn" id="mobPipBtnMute" onclick="mobToggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+        <button class="mob-pip-ctrl-btn" id="mobPipBtnCamera" onclick="mobToggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+        <button class="mob-pip-ctrl-btn expand" id="mobPipBtnExpand" onclick="mobExitPiP()" title="Expand"><i class="fas fa-expand"></i></button>
+        <button class="mob-pip-ctrl-btn end" id="mobPipBtnEnd" onclick="mobEndCall()" title="End"><i class="fas fa-phone-slash"></i></button>
+      </div>
+    </div>
+
+    <script src="/static/js/crypto.js?v=1"></script>
+    <script src="/static/js/browser.js?v=56"></script>
 
 </body>
 </html>

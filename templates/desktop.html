@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalBeam Dashboard</title>
+  <link rel="stylesheet" href="/static/css/font-awesome.min.css">
+  <link rel="stylesheet" href="/static/css/poppins.css">
+  <link rel="stylesheet" href="/static/css/desktop.css?v=49">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SIDEBAR
+         ═══════════════════════════════════════════════════════════ -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">📡</div>
+        <div class="brand-text">
+          <h2>LocalBeam</h2>
+          <p>Dashboard</p>
+        </div>
+        <button class="sidebar-close-btn" id="closeSidebar" title="Close sidebar">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="share">
+          <i class="fas fa-share-alt"></i>
+          <span>Share</span>
+        </a>
+        <a href="#" class="nav-item" data-page="chat">
+          <i class="fas fa-comments"></i>
+          <span>Chat</span>
+          <span class="nav-badge" id="chatNavBadge" style="display:none">0</span>
+        </a>
+        <a href="#" class="nav-item" data-page="calls">
+          <i class="fas fa-phone-alt"></i>
+          <span>Calls</span>
+        </a>
+        <a href="#" class="nav-item" data-page="groups">
+          <i class="fas fa-users"></i>
+          <span>Groups</span>
+        </a>
+        <a href="#" class="nav-item" data-page="bots">
+          <i class="fas fa-brain"></i>
+          <span>BEAM AI</span>
+        </a>
+        <a href="#" class="nav-item" data-page="status">
+          <i class="fas fa-circle-notch"></i>
+          <span>Status</span>
+        </a>
+        <a href="#" class="nav-item" data-page="stats">
+          <i class="fas fa-chart-pie"></i>
+          <span>Statistics</span>
+        </a>
+        <a href="#" class="nav-item" data-page="subscription">
+          <i class="fas fa-crown"></i>
+          <span>Premium</span>
+        </a>
+        <a href="#" class="nav-item" data-page="settings">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/browser" class="mobile-link" target="_blank">
+          <i class="fas fa-mobile-alt"></i>
+          <span>Mobile View</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MAIN CONTENT
+         ═══════════════════════════════════════════════════════════ -->
+    <main class="main-content">
+      <!-- Global Incoming Call Banner (visible on ALL pages) -->
+      <div id="globalCallBanner" class="global-call-banner" style="display:none">
+        <div class="global-call-info">
+          <span class="global-call-icon"><i class="fas fa-phone-volume"></i></span>
+          <span id="globalCallName">Incoming Call</span>
+          <span id="globalCallType" class="call-type-badge">Audio</span>
+        </div>
+        <div class="global-call-actions">
+          <button class="btn btn-success btn-sm" onclick="answerIncomingCall()"><i class="fas fa-phone-alt"></i> Answer</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectIncomingCall()"><i class="fas fa-phone-slash"></i> Decline</button>
+        </div>
+      </div>
+
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="toggle-sidebar" id="toggleSidebar">
+            <i class="fas fa-bars"></i>
+          </button>
+
+        </div>
+        <div class="header-right">
+          <div id="e2eeIndicator" class="e2ee-indicator initializing" title="Encryption Initializing...">
+            <i class="fas fa-lock"></i>
+          </div>
+          <div class="status-badge">
+            <span class="status-dot online"></span>
+            <span>Server Active</span>
+          </div>
+          <button class="btn-icon" id="refreshBtn" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button class="btn-icon" id="themeToggle" title="Toggle theme">
+            <i class="fas fa-moon"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Pages -->
+      <div class="content">
+
+        <!-- DEVICES PAGE (Default) -->
+        <section id="page-share" class="page active">
+          <div class="page-header">
+            <h1>Devices</h1>
+            <div class="desk-online-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" id="deskOnlineToggle" checked onchange="toggleDesktopOnline(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="desk-online-label">Available Online</span>
+              <span id="deskOnlineStatus" style="font-size:11px;color:var(--text-muted);margin-left:8px;">Receiving messages & files</span>
+            </div>
+          </div>
+
+          <div class="devices-hero-grid">
+            <!-- Left: QR + Device Info -->
+            <div class="card devices-qr-card">
+              <div class="qr-container" id="qrContainer">
+                <div class="spinner"></div>
+              </div>
+              <p class="text-center text-muted" style="font-size:11px;margin:6px 0 0">Scan to connect</p>
+              <div id="desktopDeviceInfo" class="device-info-box">
+                <div style="margin-top:4px;">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Right: Send + Device table -->
+            <div class="devices-main-col">
+              <!-- Send Card -->
+              <div class="card devices-send-card">
+                <h3><i class="fas fa-paper-plane" style="color:var(--primary);margin-right:6px"></i>Send to Device</h3>
+                <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+                  <select id="targetDevice" class="form-select" style="flex:1">
+                    <option value="">Select a device...</option>
+                  </select>
+                  <button class="btn btn-primary" id="sendFilesBtn" style="white-space:nowrap">
+                    <i class="fas fa-paper-plane"></i> Send
+                  </button>
+                </div>
+                <div id="sendProgress" class="progress hidden" style="margin-top:10px">
+                  <div class="progress-bar"></div>
+                  <span class="progress-text">0%</span>
+                </div>
+              </div>
+
+              <!-- Connected devices table -->
+              <div class="card">
+                <h3><i class="fas fa-wifi" style="color:var(--success);margin-right:6px"></i>Connected Devices</h3>
+                <div class="devices-table-wrapper">
+                  <table class="devices-table">
+                    <thead>
+                      <tr>
+                        <th>Device</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Last Seen</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="devicesTableBody">
+                      <tr class="empty-row">
+                        <td colspan="5" class="text-center text-muted">No devices connected</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shared Files Section -->
+          <div class="card" style="margin-top:20px">
+            <h3><i class="fas fa-folder-open" style="color:var(--primary);margin-right:6px"></i>Shared Files</h3>
+            <div id="sharedFilesList" class="shared-files-list">
+              <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>No files shared yet</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CHAT PAGE -->
+        <section id="page-chat" class="page">
+
+          <div class="chat-container-desktop">
+            <!-- Conversations list -->
+            <div class="chat-sidebar">
+              <div class="chat-sidebar-header">
+                <h3>Conversations</h3>
+                <button class="btn-icon" onclick="refreshDesktopChatList()" title="Refresh">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              </div>
+              <div class="chat-conv-list" id="desktopChatConvList">
+                <div class="empty-state">
+                  <i class="fas fa-inbox"></i>
+                  <p>No conversations yet</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat window -->
+            <div class="chat-main">
+              <div class="chat-empty-state" id="chatEmptyState">
+                <i class="fas fa-comments"></i>
+                <h3>No conversation selected</h3>
+                <p>Start a conversation from the list</p>
+              </div>
+
+              <div class="chat-window" id="chatWindow" style="display:none">
+                <div class="chat-header-desktop">
+                  <button class="chat-back-btn" id="chatBackBtn" onclick="closeChatGoBack()" title="Back to conversations">
+                    <i class="fas fa-arrow-left"></i>
+                  </button>
+                  <h2 id="desktopChatUserName">Chat</h2>
+                  <span class="chat-status" id="desktopChatStatus">Online</span>
+                  <div class="chat-header-call-btns">
+                    <button class="chat-call-btn" onclick="startCallFromChat('audio')" title="Voice call">
+                      <i class="fas fa-phone-alt"></i>
+                    </button>
+                    <button class="chat-call-btn" onclick="startCallFromChat('video')" title="Video call">
+                      <i class="fas fa-video"></i>
+                    </button>
+                  </div>
+                  <div class="typing-indicator-desktop" id="desktopTypingIndicator">
+                    <span>typing</span>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                  </div>
+                </div>
+
+                <!-- Inline call overlay (shown when calling from chat) -->
+                <div class="chat-call-overlay" id="chatCallOverlay" style="display:none">
+                  <div class="chat-call-overlay-header">
+                    <span class="chat-call-overlay-name" id="chatCallOverlayName">Calling...</span>
+                    <span class="chat-call-overlay-timer" id="chatCallOverlayTimer">00:00</span>
+                  </div>
+                  <div class="chat-call-overlay-media">
+                    <div id="chatCallAvatarSection" class="call-avatar-section" style="display:none">
+                      <div class="call-avatar-circle"><i class="fas fa-user"></i></div>
+                      <span id="chatCallAvatarName" class="call-avatar-name">Audio Call</span>
+                      <div class="call-audio-wave"><span></span><span></span><span></span><span></span><span></span></div>
+                    </div>
+                    <video id="chatRemoteVideo" class="call-remote-video" autoplay playsinline style="display:none" onclick="swapVideos('desktop')"></video>
+                    <video id="chatLocalVideo" class="call-local-video" autoplay playsinline muted style="display:none" onclick="swapVideos('desktop')"></video>
+                    <audio id="chatRemoteAudio" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none"></audio>
+                  </div>
+                  <div class="chat-call-overlay-controls">
+                    <button class="call-ctrl-btn" id="chatBtnToggleMute" onclick="toggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                    <button class="call-ctrl-btn" id="chatBtnToggleCamera" onclick="toggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                    <button class="call-ctrl-btn switch-media" id="chatBtnSwitchMedia" onclick="switchCallMedia()" title="Switch to Video"><i class="fas fa-video"></i></button>
+                    <button class="call-ctrl-btn screen-share" id="chatBtnScreenShare" onclick="toggleScreenShare()" title="Share Screen"><i class="fas fa-desktop"></i></button>
+                    <button class="call-ctrl-btn swap" id="chatBtnSwapVideo" onclick="swapVideos('desktop')" title="Swap views" style="display:none"><i class="fas fa-exchange-alt"></i></button>
+                    <button class="call-ctrl-btn pip-btn" id="chatBtnPip" onclick="enterPiP()" title="Picture in Picture"><i class="fas fa-compress"></i></button>
+                    <button class="call-ctrl-btn end" onclick="endCurrentCall()" title="End Call"><i class="fas fa-phone-slash"></i></button>
+                  </div>
+                </div>
+
+                <div class="chat-messages-wrap">
+                <div class="chat-messages-area" id="desktopChatMessages">
+                  <div class="chat-loading"><i class="fas fa-spinner fa-spin"></i></div>
+                </div>
+
+                <button id="deskChatScrollBtn" class="scroll-bottom-btn" onclick="document.getElementById('desktopChatMessages').scrollTop=document.getElementById('desktopChatMessages').scrollHeight" style="display:none" title="Scroll to bottom"><i class="fas fa-chevron-down"></i></button>
+                </div>
+
+                <div class="chat-input-group" id="desktopInputGroup">
+                  <button class="btn-toolbar" onclick="document.getElementById('desktopFilePicker').click()" title="Upload file">
+                    <i class="fas fa-paperclip"></i>
+                  </button>
+                  <input type="file" id="desktopFilePicker" style="display:none" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.apk" multiple onchange="handleDesktopFileUpload(event)">
+                  <div class="textarea-emoji-wrap">
+                    <textarea id="desktopChatInput" class="chat-textarea" placeholder="Type a message..." maxlength="5000" rows="1"></textarea>
+                    <button class="emoji-picker-toggle" id="emojiPickerToggle" onclick="toggleEmojiPicker()" title="Emoji" type="button">
+                      <i class="fas fa-smile"></i>
+                    </button>
+                  </div>
+                  <button class="btn-toolbar btn-mic-desktop" id="desktopMicBtn" onclick="toggleDesktopRecording()" title="Record voice message">
+                    <i class="fas fa-microphone"></i>
+                  </button>
+                  <button class="btn-toolbar btn-send-desktop" id="desktopSendBtn" onclick="sendDesktopChatMessage()" title="Send message">
+                    <i class="fas fa-paper-plane"></i>
+                  </button>
+                </div>
+
+                <!-- Inline voice recorder bar (replaces input area while recording) -->
+                <div class="chat-recorder-inline" id="desktopRecorderInline" style="display:none">
+                  <button class="recorder-inline-cancel" onclick="cancelDesktopVoiceRecord()" title="Cancel">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  <div class="recorder-inline-visual">
+                    <span class="recording-dot-inline"></span>
+                    <div class="recorder-inline-bars">
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                    </div>
+                    <span class="recorder-inline-time" id="desktopRecordingTime">0:00</span>
+                  </div>
+                  <button class="recorder-inline-send" onclick="sendDesktopVoiceRecord()" title="Send voice">
+                    <i class="fas fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CALLS PAGE -->
+        <section id="page-calls" class="page">
+          <div class="page-header">
+            <h1>Calls</h1>
+            <p>Voice & Video Calls</p>
+          </div>
+
+          <!-- Active Call Container -->
+          <div id="callActiveContainer" class="call-active-container" style="display:none">
+            <div class="call-active-header">
+              <div class="call-active-info">
+                <span class="call-active-icon"><i class="fas fa-phone-alt"></i></span>
+                <span id="callActiveName">Call in progress...</span>
+                <span class="call-active-timer" id="callActiveTimer">00:00</span>
+              </div>
+              <div class="call-active-controls">
+                <button class="call-ctrl-btn" id="btnToggleMute" onclick="toggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                <button class="call-ctrl-btn" id="btnToggleCamera" onclick="toggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                <button class="call-ctrl-btn switch-media" id="btnSwitchMedia" onclick="switchCallMedia()" title="Switch to Video"><i class="fas fa-video"></i></button>
+                <button class="call-ctrl-btn screen-share" id="btnScreenShare" onclick="toggleScreenShare()" title="Share Screen"><i class="fas fa-desktop"></i></button>
+                <button class="call-ctrl-btn swap" id="btnSwapVideo" onclick="swapVideos('desktop')" title="Swap views" style="display:none"><i class="fas fa-exchange-alt"></i></button>
+                <button class="call-ctrl-btn pip-btn" id="btnPip" onclick="enterPiP()" title="Picture in Picture"><i class="fas fa-compress"></i></button>
+                <button class="call-ctrl-btn end" onclick="endCurrentCall()" title="End Call"><i class="fas fa-phone-slash"></i></button>
+              </div>
+            </div>
+            <div id="callMediaContainer" class="call-media-container">
+              <!-- Audio-only avatar -->
+              <div id="callAvatarSection" class="call-avatar-section" style="display:none">
+                <div class="call-avatar-circle"><i class="fas fa-user"></i></div>
+                <span id="callAvatarName" class="call-avatar-name">Audio Call</span>
+                <div class="call-audio-wave">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <!-- Video elements -->
+              <video id="remoteVideo" class="call-remote-video" autoplay playsinline style="display:none" onclick="swapVideos('desktop')"></video>
+              <video id="localVideo" class="call-local-video" autoplay playsinline muted style="display:none" onclick="swapVideos('desktop')"></video>
+              <audio id="remoteAudio" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none"></audio>
+            </div>
+          </div>
+
+          <!-- Incoming Call Banner -->
+          <div id="callIncomingBanner" class="call-incoming-banner" style="display:none">
+            <div class="call-incoming-info">
+              <span class="call-incoming-icon ringing"><i class="fas fa-phone-volume"></i></span>
+              <span id="callIncomingName">Incoming call...</span>
+              <span id="callIncomingType" class="call-type-badge">Audio</span>
+            </div>
+            <div class="call-incoming-actions">
+              <button class="btn btn-success btn-sm" onclick="answerIncomingCall()">
+                <i class="fas fa-phone-alt"></i> Answer
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="rejectIncomingCall()">
+                <i class="fas fa-phone-slash"></i> Decline
+              </button>
+            </div>
+          </div>
+
+          <!-- Start Call Section -->
+          <div class="card" id="callStartSection">
+            <h3><i class="fas fa-phone-alt" style="color:#667EEA"></i> Start a Call</h3>
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Select a device to call</p>
+            <div id="callDeviceList" class="call-device-list">
+              <div class="empty-state">
+                <i class="fas fa-wifi"></i>
+                <p>No devices online</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Call History -->
+          <div class="card">
+            <h3><i class="fas fa-history" style="color:#94A3B8"></i> Call History</h3>
+            <div id="callHistoryList" class="call-history-list">
+              <div class="empty-state">
+                <i class="fas fa-phone-alt"></i>
+                <p>No recent calls</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- GROUPS PAGE -->
+        <section id="page-groups" class="page">
+          <div class="groups-layout">
+            <!-- Groups sidebar / list -->
+            <div class="groups-sidebar">
+              <div class="groups-sidebar-header">
+                <h3>Groups</h3>
+                <button class="btn-icon" onclick="openCreateGroupModal()" title="Create group">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+              <div class="groups-list" id="groupsList">
+                <div class="empty-state">
+                  <i class="fas fa-users"></i>
+                  <p>No groups yet</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group chat area -->
+            <div class="groups-main">
+              <div class="groups-empty-state" id="groupsEmptyState">
+                <i class="fas fa-users"></i>
+                <h3>No group selected</h3>
+                <p>Select a group or create a new one</p>
+              </div>
+
+              <div class="group-chat-window" id="groupChatWindow" style="display:none">
+                <div class="group-chat-header">
+                  <button class="chat-back-btn" onclick="closeGroupChat()" title="Back">
+                    <i class="fas fa-arrow-left"></i>
+                  </button>
+                  <div class="group-chat-header-info">
+                    <h2 id="groupChatName">Group</h2>
+                    <span class="group-chat-members" id="groupChatMembers">0 members</span>
+                  </div>
+                  <button class="btn-icon" onclick="deskStartGroupCall('audio')" title="Group audio call">
+                    <i class="fas fa-phone-alt"></i>
+                  </button>
+                  <button class="btn-icon" onclick="deskStartGroupCall('video')" title="Group video call">
+                    <i class="fas fa-video"></i>
+                  </button>
+                  <button class="btn-icon" onclick="openGroupInfoModal()" title="Group info">
+                    <i class="fas fa-info-circle"></i>
+                  </button>
+                </div>
+
+                <!-- Group Call Overlay -->
+                <div id="deskGroupCallOverlay" class="desk-group-call-overlay" style="display:none">
+                    <div class="desk-group-call-header">
+                        <span id="deskGroupCallTitle" class="desk-group-call-title">Group Call</span>
+                        <span id="deskGroupCallTimer" class="desk-group-call-timer">00:00</span>
+                    </div>
+                    <div id="deskGroupCallGrid" class="desk-group-call-grid">
+                    </div>
+                    <div class="desk-group-call-controls">
+                        <button class="call-ctrl-btn" id="deskGrpBtnMute" onclick="deskGrpToggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+                        <button class="call-ctrl-btn" id="deskGrpBtnCamera" onclick="deskGrpToggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+                        <button class="call-ctrl-btn end" onclick="deskGrpEndCall()" title="Leave"><i class="fas fa-phone-slash"></i></button>
+                    </div>
+                </div>
+
+                <div class="group-messages-area" id="groupMessagesArea">
+                  <div class="chat-loading"><i class="fas fa-spinner fa-spin"></i></div>
+                </div>
+
+                <div class="group-input-area" id="groupInputGroup">
+                  <button class="btn-toolbar" onclick="document.getElementById('groupFilePicker').click()" title="Upload file">
+                    <i class="fas fa-paperclip"></i>
+                  </button>
+                  <input type="file" id="groupFilePicker" style="display:none" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.apk" multiple onchange="handleGroupFileUpload(event)">
+                  <div class="textarea-emoji-wrap">
+                    <textarea id="groupChatInput" class="chat-textarea" placeholder="Type a message..." maxlength="5000" rows="1"></textarea>
+                    <button class="emoji-picker-toggle" id="groupEmojiPickerToggle" onclick="toggleGroupEmojiPicker()" title="Emoji" type="button">
+                      <i class="fas fa-smile"></i>
+                    </button>
+                  </div>
+                  <button class="btn-toolbar btn-mic-desktop" id="groupMicBtn" onclick="toggleGroupRecording()" title="Record voice message">
+                    <i class="fas fa-microphone"></i>
+                  </button>
+                  <button class="btn-toolbar btn-send-desktop" onclick="sendGroupMessage()" title="Send">
+                    <i class="fas fa-paper-plane"></i>
+                  </button>
+                </div>
+                <!-- Inline voice recorder bar for group chat -->
+                <div class="chat-recorder-inline" id="groupRecorderInline" style="display:none">
+                  <button class="recorder-inline-cancel" onclick="cancelGroupVoiceRecord()" title="Cancel">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  <div class="recorder-inline-visual">
+                    <span class="recording-dot-inline"></span>
+                    <div class="recorder-inline-bars">
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                      <div class="rec-bar"></div><div class="rec-bar"></div><div class="rec-bar"></div>
+                    </div>
+                    <span class="recorder-inline-time" id="groupRecordingTime">0:00</span>
+                  </div>
+                  <button class="recorder-inline-send" onclick="sendGroupVoiceRecord()" title="Send voice">
+                    <i class="fas fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Create Group Modal -->
+        <div id="createGroupModal" class="modal-overlay" style="display:none">
+          <div class="modal-panel">
+            <div class="modal-header">
+              <h3>Create Group</h3>
+              <button class="btn-icon" onclick="closeCreateGroupModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+              <div class="setting-item">
+                <label>Group Name</label>
+                <input type="text" id="newGroupName" class="form-input" placeholder="Enter group name" maxlength="100">
+              </div>
+              <div class="setting-item">
+                <label>Description (optional)</label>
+                <input type="text" id="newGroupDesc" class="form-input" placeholder="What's this group about?" maxlength="500">
+              </div>
+              <div class="setting-item">
+                <label>Add Members</label>
+                <div id="newGroupDeviceList" class="group-member-picker"></div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn" onclick="closeCreateGroupModal()" style="background:var(--bg-tertiary)">Cancel</button>
+              <button class="btn btn-primary" onclick="createGroup()"><i class="fas fa-plus"></i> Create</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group Info Modal -->
+        <div id="groupInfoModal" class="modal-overlay" style="display:none">
+          <div class="modal-panel modal-panel-lg">
+            <div class="modal-header">
+              <h3 id="groupInfoName">Group Info</h3>
+              <button class="btn-icon" onclick="closeGroupInfoModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+              <p id="groupInfoDesc" style="color:var(--text-muted);font-size:13px;margin-bottom:16px"></p>
+              <h4 style="margin-bottom:8px;font-size:13px;color:var(--accent)"><i class="fas fa-users"></i> Members</h4>
+              <div id="groupInfoMembersList" class="group-info-members"></div>
+              <div id="groupInfoAdminActions" style="margin-top:16px;display:none">
+                <h4 style="margin-bottom:8px;font-size:13px;color:var(--accent)"><i class="fas fa-user-plus"></i> Add Members</h4>
+                <div id="groupInfoAddMembers" class="group-member-picker"></div>
+                <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="addMembersToGroup()"><i class="fas fa-plus"></i> Add Selected</button>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button id="groupInfoDeleteBtn" class="btn btn-danger btn-sm" style="display:none" onclick="deleteCurrentGroup()"><i class="fas fa-trash"></i> Delete Group</button>
+              <button class="btn btn-danger btn-sm" onclick="leaveCurrentGroup()"><i class="fas fa-sign-out-alt"></i> Leave Group</button>
+              <button class="btn" onclick="closeGroupInfoModal()" style="background:var(--bg-tertiary)">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTS / AI ASSISTANT PAGE -->
+        <section id="page-bots" class="page">
+          <div class="page-header">
+            <h1><i class="fas fa-brain" style="color:#A78BFA"></i> BEAM AI</h1>
+            <p>Your Personal AI Assistant — Photos, Documents, Voice &amp; More</p>
+          </div>
+
+          <!-- AI Chat Card — Enhanced -->
+          <div class="card desk-ai-chat-card">
+            <!-- AI Chat Header -->
+            <div class="desk-ai-header">
+              <div class="desk-ai-header-left">
+                <div class="desk-ai-avatar-ring">
+                  <div class="desk-ai-avatar-inner"><i class="fas fa-brain"></i></div>
+                </div>
+                <div>
+                  <div class="desk-ai-header-name">BEAM AI</div>
+                  <div class="desk-ai-header-status"><span class="desk-ai-online-dot"></span> Online — Ready to help</div>
+                </div>
+              </div>
+              <div class="desk-ai-header-right">
+                <button class="btn-icon btn-xs" onclick="deskAiPickImage()" title="Send Photo"><i class="fas fa-image"></i></button>
+                <button class="btn-icon btn-xs" onclick="deskAiPickDocument()" title="Send Document"><i class="fas fa-file-pdf"></i></button>
+                <button class="btn-icon btn-xs" onclick="deskAiPickFile()" title="Send File"><i class="fas fa-paperclip"></i></button>
+                <button class="btn-icon btn-xs" onclick="deskAiShowHistory()" title="Chat History"><i class="fas fa-history"></i></button>
+                <button class="btn-icon btn-xs" onclick="aiClearHistory()" title="Clear chat"><i class="fas fa-broom"></i></button>
+                <button class="btn-icon btn-xs" onclick="toggleAiPanel('delegation')" title="Chat Delegation"><i class="fas fa-user-shield"></i></button>
+                <button class="btn-icon btn-xs" onclick="toggleAiPanel('tools')" title="AI Tools"><i class="fas fa-toolbox"></i></button>
+                <button class="btn-icon btn-xs desk-wake-btn" id="deskWakeWordBtn" onclick="deskToggleWakeWord()" title="Hey Beam — Voice Activation"><i class="fas fa-satellite-dish"></i></button>
+              </div>
+            </div>
+
+            <!-- Wake Word Floating Indicator -->
+            <div id="deskWakeWordIndicator" class="wake-word-indicator" style="display:none">
+              <div class="wake-word-pulse"></div>
+              <i class="fas fa-satellite-dish"></i>
+              <span>Listening for "Hey Beam"...</span>
+              <button class="wake-word-close" onclick="deskToggleWakeWord()"><i class="fas fa-times"></i></button>
+            </div>
+
+
+
+            <!-- AI Messages -->
+            <div class="desk-ai-messages-wrap">
+            <div id="aiChatMessages" class="ai-chat-messages">
+              <div class="ai-msg ai-msg-bot">
+                <div class="ai-msg-avatar"><i class="fas fa-brain"></i></div>
+                <div class="ai-msg-bubble">
+                  <div class="ai-msg-text">Hey! I'm <strong>BEAM AI</strong>. Ask me anything — I can search the web, set reminders, analyze files, and much more.</div>
+                </div>
+              </div>
+            </div>
+
+            <button id="deskAiScrollBtn" class="scroll-bottom-btn" onclick="document.getElementById('aiChatMessages').scrollTop=document.getElementById('aiChatMessages').scrollHeight" style="display:none" title="Scroll to bottom"><i class="fas fa-chevron-down"></i></button>
+            </div>
+
+            <!-- Attachment Preview -->
+            <div id="deskAiAttachPreview" class="desk-ai-attach-preview" style="display:none">
+              <div id="deskAiAttachThumb" class="desk-ai-attach-thumb"></div>
+              <div id="deskAiAttachName" class="desk-ai-attach-name"></div>
+              <button class="desk-ai-attach-remove" onclick="deskAiClearAttach()"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- Voice Record Bar -->
+            <div id="deskAiVoiceBar" class="desk-ai-voice-bar" style="display:none">
+              <div class="desk-ai-voice-pulse"></div>
+              <span id="deskAiVoiceTimer" class="desk-ai-voice-timer">0:00</span>
+              <span class="desk-ai-voice-label">Recording...</span>
+              <button class="desk-ai-voice-cancel" onclick="deskAiCancelVoice()"><i class="fas fa-times"></i></button>
+              <button class="desk-ai-voice-send" onclick="deskAiSendVoice()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+
+            <!-- AI Input -->
+            <div class="desk-ai-input-bar">
+              <button class="desk-ai-attach-btn" onclick="deskAiPickFile()" title="Attach file"><i class="fas fa-paperclip"></i></button>
+              <button class="desk-ai-attach-btn" onclick="deskAiPickImage()" title="Send image for analysis"><i class="fas fa-image"></i></button>
+              <button class="desk-ai-attach-btn" onclick="deskAiScanDoc()" title="Scan document (image)"><i class="fas fa-expand"></i></button>
+              <input type="text" id="aiChatInput" class="form-input desk-ai-text-input" placeholder="Message BEAM AI — send images, docs, ask anything..." maxlength="4000"
+                     onkeypress="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendAiMessage()}">
+              <button class="desk-ai-mic-btn" onclick="deskAiStartVoiceNote()" title="Voice note"><i class="fas fa-microphone"></i></button>
+              <button class="btn btn-primary btn-sm desk-ai-send-btn" onclick="sendAiMessage()" id="aiSendBtn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+
+            <!-- Hidden file inputs -->
+            <input type="file" id="deskAiImageInput" accept="image/*" style="display:none" onchange="deskAiOnImage(this)">
+            <input type="file" id="deskAiDocInput" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" style="display:none" onchange="deskAiOnDoc(this)">
+            <input type="file" id="deskAiFileInput" accept="*/*" style="display:none" onchange="deskAiOnFile(this)">
+          </div>
+
+          <!-- AI Side Panels (Delegation / Tools) -->
+          <div id="aiPanelDelegation" class="card ai-panel" style="display:none">
+            <h3 style="margin-bottom:14px"><i class="fas fa-user-shield" style="color:#A78BFA"></i> Chat Delegation</h3>
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">Let BEAM AI reply to incoming messages on your behalf. It will protect your privacy and flag important messages for your review.</p>
+            <div class="setting-item" style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <label style="margin:0;font-weight:600">Enable Delegation</label>
+              <input type="checkbox" id="aiDelegationToggle" onchange="updateDelegation()">
+            </div>
+            <div class="setting-item" style="margin-bottom:12px">
+              <label>Reply Style</label>
+              <select id="aiDelegationStyle" class="form-input" onchange="updateDelegation()">
+                <option value="professional">Professional</option>
+                <option value="casual">Casual & Friendly</option>
+                <option value="brief">Brief & Direct</option>
+                <option value="formal">Formal</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label>Custom Rules (optional)</label>
+              <textarea id="aiDelegationRules" class="form-input" rows="3" placeholder="e.g. Tell everyone I'm in a meeting until 3pm..." maxlength="1000" style="resize:vertical"></textarea>
+              <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveDelegationRules()">
+                <i class="fas fa-check" style="margin-right:5px"></i> Done — Save Rules
+              </button>
+            </div>
+          </div>
+
+          <div id="aiPanelTools" class="card ai-panel" style="display:none">
+            <h3 style="margin-bottom:14px"><i class="fas fa-toolbox" style="color:#22C55E"></i> AI Tools</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <button class="ai-tool-btn" onclick="openAiTool('summarize')"><i class="fas fa-file-alt"></i><span>Summarize Text</span></button>
+              <button class="ai-tool-btn" onclick="openAiTool('study')"><i class="fas fa-graduation-cap"></i><span>Study Notes</span></button>
+              <button class="ai-tool-btn" onclick="openAiTool('document')"><i class="fas fa-file-invoice"></i><span>Analyze Document</span></button>
+              <button class="ai-tool-btn" onclick="openAiTool('conversation')"><i class="fas fa-comments"></i><span>Chat Summary</span></button>
+              <button class="ai-tool-btn" onclick="aiSendQuick('What\\'s the weather like today?')"><i class="fas fa-cloud-sun"></i><span>Weather</span></button>
+              <button class="ai-tool-btn" onclick="aiSendQuick('Plan my day for me based on my tasks')"><i class="fas fa-calendar-day"></i><span>Plan My Day</span></button>
+            </div>
+            <!-- Summarize Tool Inline -->
+            <div id="aiToolInline" style="display:none;margin-top:14px">
+              <textarea id="aiToolText" class="form-input" rows="5" placeholder="Paste text to analyze..." maxlength="10000" style="resize:vertical"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button class="btn btn-primary btn-sm" id="aiToolSubmitBtn" onclick="submitAiTool()"><i class="fas fa-magic"></i> Analyze</button>
+                <button class="btn btn-sm" onclick="document.getElementById('aiToolInline').style.display='none'" style="background:var(--bg-tertiary)">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- STATISTICS PAGE -->
+        <section id="page-stats" class="page">
+          <div class="page-header">
+            <h1>Statistics</h1>
+          </div>
+
+          <div class="stats-grid">
+            <!-- Storage Stats -->
+            <div class="stat-card">
+              <div class="stat-content">
+                <h3>Storage Usage</h3>
+                <div class="stat-value" id="storageUsage">0 B</div>
+                <div class="stat-progress">
+                  <div class="progress-bar" id="storageBar" style="width: 0%"></div>
+                </div>
+                <p class="stat-detail" id="storageDetail">0 B / 0 B</p>
+              </div>
+            </div>
+
+            <!-- File Count -->
+            <div class="stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-file"></i>
+              </div>
+              <div class="stat-content">
+                <h3>Total Files</h3>
+                <div class="stat-value" id="fileCount">0</div>
+              </div>
+            </div>
+
+            <!-- Active Devices -->
+            <div class="stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-wifi"></i>
+              </div>
+              <div class="stat-content">
+                <h3>Active Devices</h3>
+                <div class="stat-value" id="activeDeviceCount">0</div>
+              </div>
+            </div>
+
+            <!-- Transfers -->
+            <div class="stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-exchange-alt"></i>
+              </div>
+              <div class="stat-content">
+                <h3>Transfers</h3>
+                <div class="stat-value" id="transferCount">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transfer History -->
+          <div class="card">
+            <h3>Recent Transfers</h3>
+            <div class="history-list" id="historyList">
+              <div class="empty-state">
+                <i class="fas fa-history"></i>
+                <p>No transfer history</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- STATUS PAGE -->
+        <section id="page-status" class="page">
+          <div class="page-header">
+            <h1>Status</h1>
+            <p>Stories & Updates</p>
+          </div>
+
+          <!-- Not logged in -->
+          <div id="deskStatusAuthPrompt" class="desk-status-auth-prompt">
+            <div class="card" style="text-align:center;padding:40px">
+              <i class="fas fa-lock" style="font-size:40px;color:#475569;margin-bottom:16px"></i>
+              <p style="color:#94A3B8;margin-bottom:16px">Login to view and post statuses</p>
+              <button class="btn btn-primary" onclick="navigateTo('settings')">Go to Account</button>
+            </div>
+          </div>
+
+          <!-- Logged in content -->
+          <div id="deskStatusContent" style="display:none">
+            <!-- Post row -->
+            <div class="card desk-status-post-card">
+              <div class="desk-status-post-row">
+                <div class="desk-status-avatar"><i class="fas fa-user"></i></div>
+                <button class="desk-status-post-btn" onclick="deskStatusOpenTextEditor()"><i class="fas fa-font"></i> Text Status</button>
+                <button class="desk-status-post-btn" onclick="document.getElementById('deskStatusFileInput').click()"><i class="fas fa-image"></i> Photo</button>
+                <button class="desk-status-post-btn" onclick="document.getElementById('deskStatusFileInput').click()"><i class="fas fa-video"></i> Video</button>
+              </div>
+            </div>
+            <input type="file" id="deskStatusFileInput" accept="image/*,video/mp4,video/*" style="display:none" onchange="deskStatusFileSelected(event)">
+
+            <!-- My Status -->
+            <div class="card" id="deskMyStatusCard" style="display:none">
+              <h3><i class="fas fa-circle-notch" style="color:#667EEA"></i> My Status</h3>
+              <div id="deskMyStatusList" class="desk-status-grid"></div>
+            </div>
+
+            <!-- Friends' Statuses -->
+            <div id="deskFriendStatusWrap" style="display:none">
+              <h3 style="color:#94A3B8;font-size:12px;font-weight:700;letter-spacing:0.5px;padding:16px 0 8px">RECENT UPDATES</h3>
+              <div id="deskFriendStatusList"></div>
+            </div>
+
+            <!-- Empty -->
+            <div id="deskStatusEmpty" class="card" style="text-align:center;padding:40px;display:none">
+              <i class="fas fa-circle-notch" style="font-size:36px;color:#475569;margin-bottom:12px"></i>
+              <p style="color:#64748B">No recent status updates</p>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- SUBSCRIPTION / PREMIUM PAGE -->
+        <section id="page-subscription" class="page">
+          <div class="page-header">
+            <h1><i class="fas fa-crown" style="color:#FFD700"></i> Premium</h1>
+            <p class="page-subtitle" id="subStatusBadge">Free Plan</p>
+          </div>
+
+          <div class="sub-container">
+            <!-- Current Plan Banner -->
+            <div id="subCurrentPlan" class="sub-current-plan">
+              <div class="sub-plan-icon"><i class="fas fa-user"></i></div>
+              <div class="sub-plan-info">
+                <h3 id="subPlanName">Free Plan</h3>
+                <p id="subPlanExpiry"></p>
+              </div>
+            </div>
+
+            <!-- Plan Comparison -->
+            <div class="sub-plans-grid">
+              <!-- Free Plan Card -->
+              <div class="sub-plan-card">
+                <div class="sub-plan-header free">
+                  <h3>Free</h3>
+                  <div class="sub-price">₦0<span>/month</span></div>
+                </div>
+                <ul class="sub-features">
+                  <li><i class="fas fa-check"></i> Basic File Transfer</li>
+                  <li><i class="fas fa-check"></i> E2E Encryption</li>
+                  <li><i class="fas fa-check"></i> Chat & Messaging</li>
+                  <li><i class="fas fa-check"></i> 1-on-1 Audio/Video Calls</li>
+                  <li class="locked"><i class="fas fa-lock"></i> AI Chat Delegation</li>
+                  <li class="locked"><i class="fas fa-lock"></i> AI Voice Call Answering</li>
+                  <li class="locked"><i class="fas fa-lock"></i> Unlimited File Transfers</li>
+                  <li class="locked"><i class="fas fa-lock"></i> Custom Bots</li>
+                  <li class="locked"><i class="fas fa-lock"></i> Group Calls</li>
+                </ul>
+              </div>
+
+              <!-- Premium Plan Card -->
+              <div class="sub-plan-card premium">
+                <div class="sub-plan-badge">RECOMMENDED</div>
+                <div class="sub-plan-header gold">
+                  <h3><i class="fas fa-crown"></i> Premium</h3>
+                  <div class="sub-price">₦5,000<span>/month</span></div>
+                  <div class="sub-price-alt">≈ $10.00 USD</div>
+                </div>
+                <ul class="sub-features">
+                  <li><i class="fas fa-check"></i> Everything in Free</li>
+                  <li class="premium-feat"><i class="fas fa-star"></i> AI Chat Delegation</li>
+                  <li class="premium-feat"><i class="fas fa-star"></i> AI Voice Call Answering</li>
+                  <li class="premium-feat"><i class="fas fa-star"></i> Unlimited File Transfers</li>
+                  <li class="premium-feat"><i class="fas fa-star"></i> Custom Bots</li>
+                  <li class="premium-feat"><i class="fas fa-star"></i> Group Calls</li>
+                </ul>
+                <div id="subUpgradeSection">
+                  <div class="sub-payment-methods">
+                    <p class="sub-pay-label">Choose payment method:</p>
+                    <button class="sub-pay-btn stripe-btn" onclick="startStripeCheckout()">
+                      <i class="fab fa-cc-stripe"></i> Pay with Stripe (Card)
+                    </button>
+                    <button class="sub-pay-btn paystack-btn" onclick="startPaystackCheckout()">
+                      <i class="fas fa-credit-card"></i> Pay with Paystack (₦)
+                    </button>
+                    <div style="text-align:center;margin:10px 0;font-size:12px;color:var(--text-muted)">— or —</div>
+                    <button class="sub-pay-btn trial-btn" onclick="startFreeTrial()" style="background:linear-gradient(135deg,#22C55E,#16A34A);color:#fff">
+                      <i class="fas fa-gift"></i> Start 7-Day Free Trial
+                    </button>
+                  </div>
+                </div>
+                <div id="subManageSection" style="display:none">
+                  <div class="sub-active-badge"><i class="fas fa-check-circle"></i> Active</div>
+                  <button class="sub-cancel-btn" onclick="cancelSubscription()">Cancel Subscription</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SETTINGS PAGE -->
+        <section id="page-settings" class="page">
+          <div class="page-header">
+            <h1>Settings</h1>
+          </div>
+
+          <div class="settings-grid">
+            <!-- ═══ Account Section ═══ -->
+            <div class="card settings-section" id="accountSection">
+              <h3><i class="fas fa-user-circle"></i> Account</h3>
+              <!-- Not logged in: show login/register -->
+              <div id="authForms">
+                <div class="auth-tabs">
+                  <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+                  <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+                </div>
+                <!-- Login Form -->
+                <div id="loginForm" class="auth-form">
+                  <div class="setting-item"><label>Email or Phone</label>
+                    <input type="text" id="loginIdentifier" class="form-input" placeholder="email@example.com">
+                  </div>
+                  <div class="setting-item"><label>Password</label>
+                    <input type="password" id="loginPassword" class="form-input" placeholder="Password">
+                  </div>
+                  <button class="btn btn-primary btn-block" onclick="doLogin()" id="loginBtn">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                  </button>
+                  <p class="auth-msg" id="loginMsg"></p>
+                </div>
+                <!-- Register Form -->
+                <div id="registerForm" class="auth-form" style="display:none">
+                  <div class="setting-item"><label>Name</label>
+                    <input type="text" id="regName" class="form-input" placeholder="Your name">
+                  </div>
+                  <div class="setting-item"><label>Email</label>
+                    <input type="email" id="regEmail" class="form-input" placeholder="email@example.com">
+                  </div>
+                  <div class="setting-item"><label>Phone (optional)</label>
+                    <input type="tel" id="regPhone" class="form-input" placeholder="+1234567890">
+                  </div>
+                  <div class="setting-item"><label>Password</label>
+                    <input type="password" id="regPassword" class="form-input" placeholder="Min 4 chars">
+                  </div>
+                  <button class="btn btn-primary btn-block" onclick="doRegister()" id="registerBtn">
+                    <i class="fas fa-user-plus"></i> Register
+                  </button>
+                  <p class="auth-msg" id="registerMsg"></p>
+                </div>
+              </div>
+              <!-- Logged in: show account info -->
+              <div id="accountInfo" style="display:none">
+                <div class="profile-card">
+                  <div class="profile-avatar-wrap">
+                    <div class="profile-avatar" id="profileAvatar">
+                      <i class="fas fa-user-circle"></i>
+                    </div>
+                    <label class="profile-avatar-edit" title="Change photo">
+                      <i class="fas fa-camera"></i>
+                      <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+                    </label>
+                  </div>
+                  <div class="profile-info">
+                    <div class="profile-name-row">
+                      <h4 id="accountName">—</h4>
+                      <button class="profile-edit-btn" onclick="toggleNameEdit()" title="Edit name">
+                        <i class="fas fa-pen"></i>
+                      </button>
+                    </div>
+                    <div class="profile-name-edit" id="nameEditRow" style="display:none">
+                      <input type="text" id="nameEditInput" class="form-input" placeholder="Enter new name">
+                      <button class="btn btn-primary btn-sm" onclick="saveProfileName()"><i class="fas fa-check"></i></button>
+                      <button class="btn btn-sm" onclick="toggleNameEdit()" style="background:var(--bg-tertiary)"><i class="fas fa-times"></i></button>
+                    </div>
+                    <p id="accountEmail" class="profile-email">—</p>
+                    <p id="accountPhone" class="profile-phone" style="display:none">—</p>
+                  </div>
+                </div>
+                <button class="btn btn-danger btn-block" onclick="doLogout()" style="margin-top:16px">
+                  <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+              </div>
+            </div>
+
+            <!-- ═══ Friends Section ═══ -->
+            <div class="card settings-section" id="friendsSection" style="display:none">
+              <h3><i class="fas fa-user-friends"></i> Friends</h3>
+              <!-- Add Friend -->
+              <div class="setting-item" style="display:flex;gap:8px">
+                <input type="text" id="addFriendInput" class="form-input" placeholder="Friend's email or phone" style="flex:1">
+                <button class="btn btn-primary" onclick="doAddFriend()" title="Send request">
+                  <i class="fas fa-user-plus"></i>
+                </button>
+              </div>
+              <p class="auth-msg" id="addFriendMsg"></p>
+
+              <!-- Contact Sync -->
+              <button class="btn btn-outline" onclick="openContactSync()" style="width:100%;margin:8px 0">
+                <i class="fas fa-address-book"></i> Sync Contacts
+              </button>
+              <div id="contactSyncPanel" style="display:none">
+                <div class="contact-sync-box">
+                  <p style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Paste phone numbers or emails (one per line) to find friends on LocalBeam</p>
+                  <textarea id="contactSyncInput" class="form-input" rows="5" placeholder="+1234567890&#10;friend@email.com&#10;0801234567"></textarea>
+                  <div style="display:flex;gap:8px;margin-top:6px">
+                    <button class="btn btn-primary" onclick="doContactSync()" style="flex:1" id="contactSyncBtn">
+                      <i class="fas fa-search"></i> Find Friends
+                    </button>
+                    <button class="btn btn-outline" onclick="closeContactSync()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+                <div id="contactSyncResults"></div>
+              </div>
+
+              <!-- Pending Incoming Requests -->
+              <div id="incomingRequestsWrap" style="display:none">
+                <h4 style="margin:12px 0 6px;font-size:13px;color:var(--accent)"><i class="fas fa-bell"></i> Incoming Requests</h4>
+                <div id="incomingRequestsList"></div>
+              </div>
+
+              <!-- Pending Outgoing Requests -->
+              <div id="outgoingRequestsWrap" style="display:none">
+                <h4 style="margin:12px 0 6px;font-size:13px;color:var(--text-muted)"><i class="fas fa-paper-plane"></i> Sent Requests</h4>
+                <div id="outgoingRequestsList"></div>
+              </div>
+
+              <!-- Friends List -->
+              <h4 style="margin:12px 0 6px;font-size:13px">My Friends</h4>
+              <div id="friendsList">
+                <p class="text-muted" style="font-size:12px">No friends yet. Add someone above!</p>
+              </div>
+            </div>
+
+            <!-- ═══ Status Privacy ═══ -->
+            <div class="card settings-section" id="statusPrivacySection" style="display:none">
+              <h3><i class="fas fa-eye-slash"></i> Status Privacy</h3>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Muted friends cannot see your status updates</p>
+              <div id="statusMuteList">
+                <p class="text-muted" style="font-size:12px">Loading...</p>
+              </div>
+            </div>
+
+            <div class="card settings-section">
+              <h3>Server</h3>
+              <div class="setting-item">
+                <label>Server URL</label>
+                <input type="text" id="serverUrl" class="form-input" readonly>
+              </div>
+              <div class="setting-item">
+                <label>Shared Directory</label>
+                <input type="text" id="sharedDir" class="form-input" readonly>
+              </div>
+            </div>
+
+            <div class="card settings-section">
+              <h3>Appearance</h3>
+              <div class="setting-item">
+                <label>Theme</label>
+                <select id="themeSelect" class="form-select">
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="card settings-section">
+              <h3>About</h3>
+              <div class="setting-item">
+                <p><strong>LocalBeam</strong> v1.0</p>
+                <p>Wireless file transfer app for mobile & desktop</p>
+                <a href="https://github.com/RicoTunes/localbeam" target="_blank" class="link">
+                  <i class="fab fa-github"></i> View on GitHub
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- File Upload Input (hidden) -->
+  <input type="file" id="fileInput" multiple style="display: none;">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       CUSTOM VIDEO PLAYER MODAL
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="videoPlayerModal" class="modal" style="display: none;">
+    <div class="video-player-wrap">
+      <button class="player-close" onclick="closeVideoPlayer()">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="custom-video-player">
+        <video id="customVideoElement" playsinline></video>
+        <div class="video-controls">
+          <div class="progress-container">
+            <input type="range" class="progress-bar" id="videoProgress" min="0" max="100" value="0">
+            <div class="time-display">
+              <span id="currentTime">0:00</span>
+              <span id="duration">0:00</span>
+            </div>
+          </div>
+          <div class="controls-row">
+            <button class="btn-control" onclick="toggleVideoPlay()">
+              <i class="fas fa-play"></i>
+            </button>
+            <button class="btn-control" onclick="rewindVideo()">
+              <i class="fas fa-undo"></i> -10s
+            </button>
+            <button class="btn-control" onclick="forwardVideo()">
+              +10s <i class="fas fa-redo"></i>
+            </button>
+            <div class="volume-container">
+              <button class="btn-control" onclick="toggleVideoMute()">
+                <i class="fas fa-volume-up"></i>
+              </button>
+              <input type="range" class="volume-slider" id="videoVolume" min="0" max="100" value="100">
+            </div>
+            <select class="speed-select" id="videoSpeed" onchange="changeVideoSpeed()">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+            <button class="btn-control" id="videoFullscreenBtn" onclick="toggleVideoFullscreen()">
+              <i class="fas fa-expand"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       CUSTOM AUDIO PLAYER MODAL
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="audioPlayerModal" class="modal" style="display: none;">
+    <div class="audio-player-wrap">
+      <button class="player-close" onclick="closeAudioPlayer()">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="custom-audio-player">
+        <div class="audio-visualizer">
+          <div class="vis-bar" style="--i:0"></div>
+          <div class="vis-bar" style="--i:1"></div>
+          <div class="vis-bar" style="--i:2"></div>
+          <div class="vis-bar" style="--i:3"></div>
+          <div class="vis-bar" style="--i:4"></div>
+          <div class="vis-bar" style="--i:5"></div>
+          <div class="vis-bar" style="--i:6"></div>
+          <div class="vis-bar" style="--i:7"></div>
+        </div>
+        <audio id="customAudioElement" style="display: none;"></audio>
+        <div class="audio-info">
+          <span id="audioName">Now Playing</span>
+        </div>
+        <div class="audio-controls">
+          <div class="progress-container">
+            <input type="range" class="progress-bar" id="audioProgress" min="0" max="100" value="0">
+            <div class="time-display">
+              <span id="audioCurrentTime">0:00</span>
+              <span id="audioDuration">0:00</span>
+            </div>
+          </div>
+          <div class="controls-row">
+            <button class="btn-control" onclick="rewindAudio()">
+              <i class="fas fa-undo"></i>
+            </button>
+            <button class="btn-control btn-play-large" onclick="toggleAudioPlay()">
+              <i class="fas fa-play"></i>
+            </button>
+            <button class="btn-control" onclick="forwardAudio()">
+              <i class="fas fa-redo"></i>
+            </button>
+          </div>
+          <div class="controls-row">
+            <div class="volume-container">
+              <button class="btn-control" onclick="toggleAudioMute()">
+                <i class="fas fa-volume-up"></i>
+              </button>
+              <input type="range" class="volume-slider" id="audioVolume" min="0" max="100" value="100">
+            </div>
+            <select class="speed-select" id="audioSpeed" onchange="changeAudioSpeed()">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Text Editor Overlay -->
+  <div id="deskStatusTextEditor" class="desk-ste-overlay" style="display:none">
+    <div class="desk-ste-header">
+      <button onclick="deskStatusCloseTextEditor()"><i class="fas fa-times"></i> Cancel</button>
+      <span>Text Status</span>
+      <button onclick="deskStatusPostText()"><i class="fas fa-paper-plane"></i> Post</button>
+    </div>
+    <div class="desk-ste-preview" id="deskStePreview">
+      <textarea id="deskSteInput" placeholder="Type a status..." maxlength="500"></textarea>
+    </div>
+    <div class="desk-ste-colors">
+      <button class="dstc-btn active" data-bg="#667eea,#764ba2" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#667eea,#764ba2)"></button>
+      <button class="dstc-btn" data-bg="#f7971e,#ffd200" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#f7971e,#ffd200)"></button>
+      <button class="dstc-btn" data-bg="#00c6ff,#0072ff" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#00c6ff,#0072ff)"></button>
+      <button class="dstc-btn" data-bg="#f857a6,#ff5858" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#f857a6,#ff5858)"></button>
+      <button class="dstc-btn" data-bg="#11998e,#38ef7d" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></button>
+      <button class="dstc-btn" data-bg="#2c3e50,#4ca1af" onclick="deskStatusPickBg(this)" style="background:linear-gradient(135deg,#2c3e50,#4ca1af)"></button>
+    </div>
+  </div>
+
+  <!-- Status Caption Dialog -->
+  <div id="deskStatusCaptionDlg" class="desk-ste-overlay" style="display:none">
+    <div class="desk-ste-header">
+      <button onclick="deskStatusCloseCaptionDlg()"><i class="fas fa-times"></i> Cancel</button>
+      <span>Add Caption</span>
+      <button onclick="deskStatusPostImage()"><i class="fas fa-paper-plane"></i> Post</button>
+    </div>
+    <div class="desk-scd-preview">
+      <img id="deskStatusCaptionImg" src="">
+      <video id="deskStatusCaptionVid" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls></video>
+    </div>
+    <div style="padding:12px 20px;background:#1E293B;border-top:1px solid rgba(255,255,255,0.06)">
+      <input type="text" id="deskStatusCaptionText" class="form-input" placeholder="Add a caption..." maxlength="500">
+    </div>
+  </div>
+
+  <!-- Status Viewers Modal -->
+  <div id="deskViewersModal" class="desk-viewers-modal" style="display:none">
+    <div class="desk-viewers-panel">
+      <div class="desk-viewers-header">
+        <h3><i class="fas fa-eye"></i> <span id="deskViewersCount">0 Views</span></h3>
+        <button onclick="deskCloseViewers()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="desk-viewers-list" id="deskViewersList"></div>
+    </div>
+  </div>
+
+  <!-- Story Viewer Fullscreen -->
+  <div id="deskStoryViewer" class="desk-story-viewer" style="display:none">
+    <div class="desk-story-container" id="deskStoryContainer"></div>
+  </div>
+
+  <!-- PiP Floating Window -->
+  <div id="pipWindow" class="pip-window" style="display:none">
+    <div class="pip-header" id="pipDragHandle">
+      <span class="pip-title" id="pipTitle">Call</span>
+      <button class="pip-close" onclick="endCurrentCall()" title="End Call"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="pip-video-area">
+      <video id="pipRemoteVideo" autoplay playsinline></video>
+      <video id="pipLocalVideo" autoplay playsinline muted class="pip-local-video"></video>
+      <div class="pip-avatar" id="pipAvatar" style="display:none">
+        <i class="fas fa-user"></i>
+      </div>
+    </div>
+    <div class="pip-controls">
+      <button class="pip-ctrl-btn" id="pipBtnMute" onclick="toggleMute()" title="Mute"><i class="fas fa-microphone"></i></button>
+      <button class="pip-ctrl-btn" id="pipBtnCamera" onclick="toggleCamera()" title="Camera"><i class="fas fa-video"></i></button>
+      <button class="pip-ctrl-btn expand" id="pipBtnExpand" onclick="exitPiP()" title="Expand"><i class="fas fa-expand"></i></button>
+      <button class="pip-ctrl-btn end" id="pipBtnEnd" onclick="endCurrentCall()" title="End Call"><i class="fas fa-phone-slash"></i></button>
+    </div>
+  </div>
+
+  <script src="/static/js/crypto.js?v=1"></script>
+  <script src="/static/js/desktop.js?v=68"></script>
+</body>
+</html>

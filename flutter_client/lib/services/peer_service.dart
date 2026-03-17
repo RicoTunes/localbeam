@@ -306,7 +306,7 @@ class PeerService extends ChangeNotifier {
   void _onDiscoveryEvent(BonsoirDiscoveryEvent event) {
     switch (event) {
       case BonsoirDiscoveryServiceFoundEvent():
-        event.service?.resolve(_discovery!.serviceResolver);
+        event.service.resolve(_discovery!.serviceResolver);
       case BonsoirDiscoveryServiceResolvedEvent():
         final svc = event.service; // BonsoirService in v6
         final host = svc.host; // String? — populated after resolution
@@ -320,7 +320,6 @@ class PeerService extends ChangeNotifier {
         }
       case BonsoirDiscoveryServiceLostEvent():
         final svc = event.service;
-        if (svc == null) return;
         final name = svc.attributes['n'] ?? svc.name;
         peers.removeWhere((p) => p.name == name);
         notifyListeners();

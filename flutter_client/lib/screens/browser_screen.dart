@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../services/download_helper.dart';
 import '../models/file_item.dart';
 import '../widgets/file_card.dart';
 
@@ -181,6 +181,55 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 ),
               ),
             ),
+            // ── Download progress bar ─────────────────────────
+            if (_isDownloading)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF667EEA)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _downloadingName ?? 'Downloading...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: _downloadProgress,
+                                backgroundColor: Colors.white.withOpacity(0.1),
+                                valueColor: const AlwaysStoppedAnimation(Color(0xFF667EEA)),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(_downloadProgress * 100).toInt()}%',
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // ── File list ────────────────────────────────────
             Expanded(
               child: _loading
@@ -216,23 +265,74 @@ class _BrowserScreenState extends State<BrowserScreen> {
     );
   }
 
+  bool _isDownloading = false;
+  double _downloadProgress = 0;
+  String? _downloadingName;
+
   Future<void> _download(FileItem file) async {
+    if (_isDownloading) return;
     final api = context.read<ApiService>();
-    final url = api.downloadUrl(file.path);
-    final uri = Uri.parse(url);
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0;
+      _downloadingName = file.name;
+    });
+
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        // Fallback to Flask
-        final fallback = Uri.parse(api.flaskDownloadUrl(file.path));
-        await launchUrl(fallback, mode: LaunchMode.externalApplication);
+      // Save to public Downloads folder
+      final savePath = await DownloadHelper.getPublicDownloadPath(file.name);
+      if (savePath == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Storage permission denied'), backgroundColor: Color(0xFFF87171)),
+          );
+        }
+        setState(() { _isDownloading = false; _downloadingName = null; });
+        return;
+      }
+
+      final result = await api.downloadFile(
+        file.path,
+        savePath,
+        onProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() => _downloadProgress = received / total);
+          }
+        },
+      );
+
+      if (mounted) {
+        if (result != null) {
+          // Notify media scanner so file appears in file managers
+          await DownloadHelper.scanFile(savePath);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Downloaded ${file.name} to Downloads'),
+              backgroundColor: const Color(0xFF22C55E),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Download failed'),
+              backgroundColor: Color(0xFFF87171),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
+          SnackBar(content: Text('Download failed: $e'), backgroundColor: const Color(0xFFF87171)),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+          _downloadingName = null;
+        });
       }
     }
   }

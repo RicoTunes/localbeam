@@ -19,8 +19,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
   // Manual fallback
   bool _showManual = false;
   final _ipCtrl = TextEditingController();
-  final _portCtrl = TextEditingController(text: '5001');
+  final _portCtrl = TextEditingController(text: '5000');
   final _formKey = GlobalKey<FormState>();
+
+  // Auto-discovery
+  bool _discovering = false;
+  String _discoverStatus = '';
 
   // Status
   bool _loading = false;
@@ -28,11 +32,52 @@ class _ConnectScreenState extends State<ConnectScreen> {
   String? _successMsg;
 
   @override
+  void initState() {
+    super.initState();
+    // Auto-discover server on screen load
+    _autoDiscover();
+  }
+
+  @override
   void dispose() {
     _scanCtrl?.dispose();
     _ipCtrl.dispose();
     _portCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Auto-discover server on LAN ────────────────────────────
+  Future<void> _autoDiscover() async {
+    if (_discovering || _loading) return;
+    setState(() {
+      _discovering = true;
+      _discoverStatus = 'Searching for LocalBeam on your network...';
+      _errorMsg = null;
+      _successMsg = null;
+    });
+
+    final api = context.read<ApiService>();
+    final ip = await api.discoverServer(
+      onStatus: (status) {
+        if (mounted) setState(() => _discoverStatus = status);
+      },
+    );
+
+    if (!mounted) return;
+
+    if (ip != null) {
+      setState(() {
+        _discovering = false;
+        _discoverStatus = 'Found server at $ip — connecting...';
+      });
+      _doConnect(ip);
+    } else {
+      setState(() {
+        _discovering = false;
+        _discoverStatus = '';
+        _errorMsg = 'Could not find LocalBeam on this network.\nTry QR scan or enter IP manually.';
+      });
+    }
   }
 
   // ── QR scanner ─────────────────────────────────────────────
@@ -67,7 +112,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (uri == null || uri.host.isEmpty) return;
 
     final ip = uri.host;
-    final port = uri.hasPort ? uri.port : 5001;
+    final port = uri.hasPort ? uri.port : 5000;
 
     _scanProcessing = true;
     _stopScan();
@@ -79,12 +124,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (!_formKey.currentState!.validate()) return;
     _doConnect(
       _ipCtrl.text.trim(),
-      port: int.tryParse(_portCtrl.text.trim()) ?? 5001,
+      port: int.tryParse(_portCtrl.text.trim()) ?? 5000,
     );
   }
 
   // ── Shared connect logic ───────────────────────────────────
-  Future<void> _doConnect(String ip, {int port = 5001}) async {
+  Future<void> _doConnect(String ip, {int port = 5000}) async {
     setState(() {
       _loading = true;
       _errorMsg = null;
@@ -141,12 +186,53 @@ class _ConnectScreenState extends State<ConnectScreen> {
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               const Text(
-                'On your PC, open LocalBeam and scan the QR\nshown on the Dashboard page.',
+                'Your phone will automatically find LocalBeam\non your Wi-Fi network.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Color(0xFF94A3B8), height: 1.5),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Auto-discovery status
+              if (_discovering) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF667EEA).withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      const CircularProgressIndicator(color: Color(0xFF667EEA)),
+                      const SizedBox(height: 16),
+                      Text(
+                        _discoverStatus,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                // Auto-discover button
+                ElevatedButton.icon(
+                  onPressed: _loading ? null : _autoDiscover,
+                  icon: const Icon(Icons.wifi_find, size: 22),
+                  label: const Text('Find Server Automatically',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF667EEA),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFF667EEA).withOpacity(.4),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // QR scanner area
               if (_scanning) ...[
@@ -265,7 +351,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                           controller: _portCtrl,
                           style: const TextStyle(color: Colors.white),
                           keyboardType: TextInputType.number,
-                          decoration: _inputDeco('Port', hint: '5001'),
+                          decoration: _inputDeco('Port', hint: '5000'),
                         ),
                         const SizedBox(height: 16),
                         SizedBox(
@@ -309,7 +395,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'On PC: open http://localhost:5001 → Dashboard tab → QR code is shown there.',
+                        'Make sure your phone and PC are on the same Wi-Fi network. LocalBeam will be found automatically.',
                         style: TextStyle(
                             color: Color(0xFF94A3B8),
                             fontSize: 13,

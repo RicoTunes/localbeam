@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import 'auth_screen.dart';
+import 'connect_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -10,6 +12,7 @@ class SettingsScreen extends StatelessWidget {
     final api = context.watch<ApiService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final info = api.info;
+    final user = api.currentUser;
 
     return Scaffold(
       backgroundColor:
@@ -26,49 +29,114 @@ class SettingsScreen extends StatelessWidget {
                     style:
                         TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
               ),
+              // Account card
+              _SectionCard(
+                title: 'Account',
+                icon: Icons.person_outline,
+                isDark: isDark,
+                children: api.isLoggedIn && user != null
+                    ? [
+                        _InfoRow('Name', user['name'] as String? ?? ''),
+                        if ((user['email'] as String? ?? '').isNotEmpty)
+                          _InfoRow('Email', user['email'] as String),
+                        if ((user['phone'] as String? ?? '').isNotEmpty)
+                          _InfoRow('Phone', user['phone'] as String),
+                        const SizedBox(height: 12),
+                        _ActionButton(
+                          label: 'Logout',
+                          icon: Icons.logout,
+                          color: const Color(0xFFF87171),
+                          onTap: () => api.authLogout(),
+                        ),
+                      ]
+                    : [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text('Sign in to add friends and chat',
+                              style: TextStyle(
+                                  color: Colors.grey.withOpacity(.6),
+                                  fontSize: 13)),
+                        ),
+                        _ActionButton(
+                          label: 'Login / Register',
+                          icon: Icons.login,
+                          color: const Color(0xFF667EEA),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const _SettingsAuthWrapper(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+              ),
+              const SizedBox(height: 16),
               // Connection card
               _SectionCard(
-                title: 'Connection',
+                title: 'PC Connection',
                 icon: Icons.wifi,
                 isDark: isDark,
-                children: [
-                  _InfoRow('Status',
-                      api.isConnected ? 'Connected ✓' : 'Disconnected',
-                      valueColor: api.isConnected
-                          ? const Color(0xFF4ADE80)
-                          : const Color(0xFFF87171)),
-                  if (api.serverIp != null)
-                    _InfoRow('Server IP', api.serverIp!),
-                  _InfoRow('Port', '${api.serverPort}'),
-                  if (info != null) ...[
-                    _InfoRow('Fast Port', '${info.fastPort}'),
-                    _InfoRow('Shared Folder', info.directory,
-                        mono: true),
-                  ],
-                  const SizedBox(height: 12),
-                  _ActionButton(
-                    label: 'Disconnect',
-                    icon: Icons.logout,
-                    color: const Color(0xFFF87171),
-                    onTap: () => api.disconnect(),
-                  ),
-                  const SizedBox(height: 8),
-                  _ActionButton(
-                    label: 'Re-check Connection',
-                    icon: Icons.refresh,
-                    color: const Color(0xFF667EEA),
-                    onTap: () async {
-                      await api.checkConnection();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(api.isConnected
-                              ? 'Still connected ✓'
-                              : 'Connection lost'),
-                        ));
-                      }
-                    },
-                  ),
-                ],
+                children: api.isConnected
+                    ? [
+                        _InfoRow('Status', 'Connected ✓',
+                            valueColor: const Color(0xFF4ADE80)),
+                        if (api.serverIp != null)
+                          _InfoRow('Server IP', api.serverIp!),
+                        _InfoRow('Port', '${api.serverPort}'),
+                        if (info != null) ...[
+                          _InfoRow('Fast Port', '${info.fastPort}'),
+                          _InfoRow('Shared Folder', info.directory, mono: true),
+                        ],
+                        const SizedBox(height: 12),
+                        _ActionButton(
+                          label: 'Disconnect',
+                          icon: Icons.logout,
+                          color: const Color(0xFFF87171),
+                          onTap: () => api.disconnect(),
+                        ),
+                        const SizedBox(height: 8),
+                        _ActionButton(
+                          label: 'Re-check Connection',
+                          icon: Icons.refresh,
+                          color: const Color(0xFF667EEA),
+                          onTap: () async {
+                            await api.checkConnection();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(api.isConnected
+                                    ? 'Still connected ✓'
+                                    : 'Connection lost'),
+                              ));
+                            }
+                          },
+                        ),
+                      ]
+                    : [
+                        _InfoRow('Status', 'Not connected',
+                            valueColor: const Color(0xFF94A3B8)),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 12),
+                          child: Text(
+                            'Connect to a PC to share files, use Chat with friends, and access all features.',
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFF64748B) : Colors.grey,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                        _ActionButton(
+                          label: 'Connect / Scan QR',
+                          icon: Icons.qr_code_scanner,
+                          color: const Color(0xFF667EEA),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ConnectScreen()),
+                            );
+                          },
+                        ),
+                      ],
               ),
               const SizedBox(height: 16),
               // About card
@@ -77,10 +145,10 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.info_outline,
                 isDark: isDark,
                 children: [
-                  _InfoRow('App', 'Wireless Transfer'),
+                  _InfoRow('App', 'LocalBeam'),
                   _InfoRow('Version', '1.0.0'),
-                  _InfoRow('Transfer', 'Raw TCP fast server'),
-                  _InfoRow('Protocol', 'HTTP · LAN only'),
+                  _InfoRow('AI', 'BEAM AI — always available'),
+                  _InfoRow('Transfer', 'Fast LAN file sharing'),
                 ],
               ),
               const SizedBox(height: 16),
@@ -90,10 +158,10 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.help_outline,
                 isDark: isDark,
                 children: [
-                  _Step('1', 'Run the Python app on your laptop'),
-                  _Step('2', 'Enter the IP shown in the terminal (or scan QR)'),
-                  _Step('3', 'Browse your laptop\'s files here'),
-                  _Step('4', 'Tap a file → tap Download to save it'),
+                  _Step('1', 'Use BEAM AI instantly — no setup needed'),
+                  _Step('2', 'To share files: connect to your PC via Settings'),
+                  _Step('3', 'Scan QR or enter IP to pair with your PC'),
+                  _Step('4', 'Chat, share files, and call friends'),
                 ],
               ),
             ],
@@ -271,6 +339,28 @@ class _Step extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SettingsAuthWrapper extends StatelessWidget {
+  const _SettingsAuthWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ApiService>(
+      builder: (context, api, _) {
+        if (api.isLoggedIn) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+          });
+          return const Scaffold(
+            backgroundColor: Color(0xFF0F172A),
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF667EEA))),
+          );
+        }
+        return const AuthScreen();
+      },
     );
   }
 }

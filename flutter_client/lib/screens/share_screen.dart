@@ -4,9 +4,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/download_helper.dart';
+import '../widgets/connect_prompt.dart';
 
 // ─────────────────────────────────────────────────────────────
 // ShareScreen  — server-relayed phone-to-phone file sharing
@@ -153,7 +154,7 @@ class _ShareScreenState extends State<ShareScreen>
 
       final fileId = await api.p2pSendFile(File(pf.path!), _deviceId);
       if (fileId != null) {
-        _addHistory(pf.name, pf.size ?? 0, 'sent');
+        _addHistory(pf.name, pf.size, 'sent');
       }
       setState(() => _sendProgress = 1.0);
     }
@@ -165,8 +166,15 @@ class _ShareScreenState extends State<ShareScreen>
   // ── Download file ─────────────────────────────────────────
   Future<void> _downloadFile(P2PFile f) async {
     final api = context.read<ApiService>();
-    final dir = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
-    final savePath = '${dir.path}/${f.name}';
+    final savePath = await DownloadHelper.getPublicDownloadPath(f.name);
+    if (savePath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Storage permission denied'), backgroundColor: Color(0xFFF87171)),
+        );
+      }
+      return;
+    }
 
     setState(() { _downloading = true; _dlProgress = 0; _dlName = f.name; });
 
@@ -180,9 +188,10 @@ class _ShareScreenState extends State<ShareScreen>
 
     if (file != null) {
       _addHistory(f.name, f.size, 'received');
+      await DownloadHelper.scanFile(savePath);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded ${f.name}'), backgroundColor: const Color(0xFF22C55E)),
+          SnackBar(content: Text('Downloaded ${f.name} to Downloads'), backgroundColor: const Color(0xFF22C55E)),
         );
       }
     }
@@ -253,6 +262,13 @@ class _ShareScreenState extends State<ShareScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final api = context.watch<ApiService>();
+    if (!api.isConnected) {
+      return const ConnectPromptWrapper(
+        feature: 'File Sharing',
+        icon: Icons.send_outlined,
+      );
+    }
     final others = _devices.where((d) => d.id != _deviceId).toList();
 
     return Scaffold(

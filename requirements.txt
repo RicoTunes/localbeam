@@ -6,3 +6,5 @@ flask-cors==4.0.0
 pyperclip==1.8.2
 watchdog==3.0.0
 gunicorn==21.2.0
+cryptography>=41.0.0
+stripe>=7.0.0
